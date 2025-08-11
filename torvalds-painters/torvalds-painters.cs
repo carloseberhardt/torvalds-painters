@@ -53,7 +53,7 @@ namespace TorvaldsPainters
         // Harmony instance for patches
         private Harmony harmony;
         
-        // ORIGINAL PERFECT COLORS - DO NOT CHANGE THESE AGAIN!
+        // Color values for painting - these work perfectly for the painting system
         public static readonly Dictionary<string, Color> VikingColors = new Dictionary<string, Color>()
         {
             // Wood shades - Natural Wood in center, 2 darker, 2 lighter
@@ -70,6 +70,25 @@ namespace TorvaldsPainters
             {"Blue", new Color(0.2f, 0.3f, 1.5f)}, // True blue  
             {"Green", new Color(0.3f, 1.5f, 0.3f)}, // Vibrant green
             {"Yellow", new Color(1.8f, 1.6f, 0.2f)} // Bright yellow
+        };
+        
+        // Display colors for icons - clamped to 0-1 range for proper visual display
+        public static readonly Dictionary<string, Color> DisplayColors = new Dictionary<string, Color>()
+        {
+            // Brown shades that actually look brown in icons
+            {"Dark Brown", new Color(0.4f, 0.2f, 0.1f)}, 
+            {"Medium Brown", new Color(0.6f, 0.4f, 0.2f)}, 
+            {"Natural Wood", new Color(0.8f, 0.6f, 0.4f)}, 
+            {"Light Brown", new Color(0.9f, 0.7f, 0.5f)}, 
+            {"Pale Wood", new Color(0.95f, 0.8f, 0.6f)}, 
+            
+            // Banner colors - clamped to 0-1 for icons
+            {"Black", new Color(0.1f, 0.1f, 0.1f)}, 
+            {"White", new Color(1.0f, 1.0f, 1.0f)}, 
+            {"Red", new Color(0.8f, 0.2f, 0.2f)}, 
+            {"Blue", new Color(0.2f, 0.3f, 0.8f)}, 
+            {"Green", new Color(0.3f, 0.8f, 0.3f)}, 
+            {"Yellow", new Color(0.9f, 0.8f, 0.2f)} 
         };
         
         // Current state
@@ -114,19 +133,168 @@ namespace TorvaldsPainters
         
         private void CreatePaintingMalletTable()
         {
-            // Create empty piece table for tool stance
+            // Create piece table with custom Paint Colors category
             var tableConfig = new PieceTableConfig
             {
                 UseCategories = false,
                 UseCustomCategories = true,
-                CustomCategories = System.Array.Empty<string>(),
+                CustomCategories = new string[] { "PaintColors" },
                 CanRemovePieces = false
             };
             
             paintingPieceTable = new CustomPieceTable("_PaintTable", tableConfig);
             PieceManager.Instance.AddPieceTable(paintingPieceTable);
             
-            Jotunn.Logger.LogInfo("🎨 Created empty piece table for painting mallet");
+            // Create and add color swatch pieces
+            CreateColorSwatchPieces();
+            
+            Jotunn.Logger.LogInfo("🎨 Created paint table with color swatch pieces");
+        }
+        
+        // Create color swatch pieces for the paint table
+        private void CreateColorSwatchPieces()
+        {
+            try
+            {
+                // Create a simple colored cube prefab for each color
+                foreach (var colorEntry in VikingColors)
+                {
+                    string colorName = colorEntry.Key;
+                    Color color = colorEntry.Value;
+                    
+                    // Create a simple cube prefab programmatically (but disable its colliders/physics)
+                    var cubePrefab = CreateColoredCubePrefab(colorName, color);
+                    
+                    // Create a simple colored icon using display colors
+                    var displayColor = DisplayColors.TryGetValue(colorName, out Color dispColor) ? dispColor : color;
+                    var icon = CreateColoredIcon(displayColor);
+                    
+                    // Create piece config - make it non-placeable
+                    var pieceConfig = new PieceConfig
+                    {
+                        Name = $"$paint_swatch_{colorName.ToLower().Replace(" ", "_")}",
+                        Description = $"$paint_swatch_{colorName.ToLower().Replace(" ", "_")}_desc",
+                        PieceTable = "_PaintTable", 
+                        Category = "PaintColors",
+                        CraftingStation = "",
+                        Icon = icon
+                    };
+                    
+                    // No requirements - these are free "tools" not actual buildable pieces
+                    
+                    // Create custom piece using our programmatic cube prefab
+                    var colorSwatch = new CustomPiece(cubePrefab, false, pieceConfig);
+                    
+                    // Store the color name for later identification
+                    var colorInfo = cubePrefab.AddComponent<ColorSwatchInfo>();
+                    colorInfo.colorName = colorName;
+                    
+                    // Disable the piece's ability to be placed by removing placement requirements
+                    var piece = cubePrefab.GetComponent<Piece>();
+                    if (piece != null)
+                    {
+                        piece.m_canBeRemoved = false; // Can't be removed
+                        piece.m_groundOnly = false;   // Not restricted to ground
+                        piece.m_groundPiece = false;  // Not a ground piece
+                        piece.m_allowedInDungeons = false; // Can't be placed in dungeons
+                        piece.m_onlyInTeleportArea = false;
+                        piece.m_allowRotatedOverlap = false;
+                        piece.m_noInWater = true;     // Can't be placed in water
+                        piece.m_noClipping = true;    // No clipping allowed - makes it harder to place
+                    }
+                    
+                    PieceManager.Instance.AddPiece(colorSwatch);
+                    Jotunn.Logger.LogInfo($"🎨 Created color swatch piece for {colorName}");
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Jotunn.Logger.LogError($"❌ Error creating color swatch pieces: {ex.Message}");
+            }
+        }
+        
+        // Create a simple colored cube prefab programmatically
+        private GameObject CreateColoredCubePrefab(string colorName, Color color)
+        {
+            // Create a cube GameObject
+            var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            cube.name = $"ColorSwatch_{colorName.Replace(" ", "_")}";
+            
+            // Scale it to be small and cube-like
+            cube.transform.localScale = Vector3.one * 0.5f;
+            
+            // Create a colored material using a shader that exists in Valheim
+            var material = new Material(Shader.Find("ToonDeferredShading2017"));
+            if (material.shader == null)
+            {
+                // Fallback to a basic shader if ToonDeferredShading2017 not found
+                material = new Material(Shader.Find("Legacy Shaders/Diffuse"));
+            }
+            if (material.shader == null)
+            {
+                // Last resort fallback
+                material = new Material(Shader.Find("Unlit/Color"));
+            }
+            
+            material.color = color;
+            if (material.HasProperty("_Color"))
+            {
+                material.SetColor("_Color", color);
+            }
+            
+            // Apply the material
+            var renderer = cube.GetComponent<MeshRenderer>();
+            renderer.material = material;
+            
+            // Add required Piece component
+            var piece = cube.AddComponent<Piece>();
+            piece.m_name = $"$paint_swatch_{colorName.ToLower().Replace(" ", "_")}";
+            piece.m_description = $"$paint_swatch_{colorName.ToLower().Replace(" ", "_")}_desc";
+            
+            // Add other required components
+            cube.AddComponent<ZNetView>();
+            
+            // Remove collider since this won't be placed as a real building piece
+            var collider = cube.GetComponent<Collider>();
+            if (collider != null)
+            {
+                Object.DestroyImmediate(collider);
+            }
+            
+            // Don't destroy on load
+            Object.DontDestroyOnLoad(cube);
+            
+            return cube;
+        }
+        
+        // Create a simple colored icon sprite
+        private Sprite CreateColoredIcon(Color color)
+        {
+            try
+            {
+                // Create a small texture with the solid color
+                int size = 64; // Icon size
+                var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+                
+                // Fill the texture with the solid color
+                var pixels = new Color[size * size];
+                for (int i = 0; i < pixels.Length; i++)
+                {
+                    pixels[i] = color;
+                }
+                texture.SetPixels(pixels);
+                texture.Apply();
+                
+                // Create sprite from texture
+                var sprite = Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f));
+                
+                return sprite;
+            }
+            catch (System.Exception ex)
+            {
+                Jotunn.Logger.LogError($"❌ Error creating colored icon: {ex.Message}");
+                return null;
+            }
         }
         
         private void CreatePaintingMallet()
@@ -186,11 +354,37 @@ namespace TorvaldsPainters
             Localization.AddTranslation("English", new Dictionary<string, string>
             {
                 {"item_painting_mallet", "Torvald's Painting Mallet"},
-                {"item_painting_mallet_desc", "A fine mallet for painting building pieces! Left-click to paint, right-click to cycle colors."},
+                {"item_painting_mallet_desc", "A fine mallet for painting building pieces! Left-click to paint, select colors from build menu."},
                 {"paint_apply_hint", "Apply Paint"},
-                {"paint_cycle_hint", "Cycle Color"},
                 {"paint_applied", "🎨 Painted with"},
-                {"paint_cannot_paint", "❌ Cannot paint this object"}
+                {"paint_cannot_paint", "❌ Cannot paint this object"},
+                
+                // Color swatch piece names and descriptions
+                {"paint_swatch_dark_brown", "Dark Brown Paint"},
+                {"paint_swatch_dark_brown_desc", "Select dark brown color for painting"},
+                {"paint_swatch_medium_brown", "Medium Brown Paint"},
+                {"paint_swatch_medium_brown_desc", "Select medium brown color for painting"},
+                {"paint_swatch_natural_wood", "Natural Wood Paint"},
+                {"paint_swatch_natural_wood_desc", "Select natural wood color for painting"},
+                {"paint_swatch_light_brown", "Light Brown Paint"},
+                {"paint_swatch_light_brown_desc", "Select light brown color for painting"},
+                {"paint_swatch_pale_wood", "Pale Wood Paint"},
+                {"paint_swatch_pale_wood_desc", "Select pale wood color for painting"},
+                {"paint_swatch_black", "Black Paint"},
+                {"paint_swatch_black_desc", "Select black color for painting"},
+                {"paint_swatch_white", "White Paint"},
+                {"paint_swatch_white_desc", "Select white color for painting"},
+                {"paint_swatch_red", "Red Paint"},
+                {"paint_swatch_red_desc", "Select red color for painting"},
+                {"paint_swatch_blue", "Blue Paint"},
+                {"paint_swatch_blue_desc", "Select blue color for painting"},
+                {"paint_swatch_green", "Green Paint"},
+                {"paint_swatch_green_desc", "Select green color for painting"},
+                {"paint_swatch_yellow", "Yellow Paint"},
+                {"paint_swatch_yellow_desc", "Select yellow color for painting"},
+                
+                // Custom category name
+                {"PaintColors", "Paint Colors"}
             });
         }
         
@@ -263,14 +457,14 @@ namespace TorvaldsPainters
         
         private void RegisterInputs()
         {
-            // Add key hints for the mallet - no custom input registration needed
+            // Add key hints for the mallet - only paint hint needed now
             KeyHintManager.Instance.AddKeyHint(new KeyHintConfig 
             {
                 Item = "TorvaldsMallet",
                 ButtonConfigs = new[] 
                 {
-                    new ButtonConfig { Name = "Attack", HintToken = "$paint_apply_hint" },
-                    new ButtonConfig { Name = "Block", HintToken = "$paint_cycle_hint" }
+                    new ButtonConfig { Name = "Attack", HintToken = "$paint_apply_hint" }
+                    // Removed Block/right-click hint since we now use build menu for color selection
                 }
             });
             
@@ -305,21 +499,7 @@ namespace TorvaldsPainters
             }
         }
         
-        // Cycle to next color
-        private void CycleColor()
-        {
-            var colorKeys = VikingColors.Keys.ToList();
-            colorIndex = (colorIndex + 1) % colorKeys.Count;
-            currentSelectedColor = colorKeys[colorIndex];
-            
-            var player = Player.m_localPlayer;
-            if (player != null)
-            {
-                player.Message(MessageHud.MessageType.Center, $"🎨 Selected: {currentSelectedColor}");
-            }
-            
-            Jotunn.Logger.LogInfo($"🎨 Cycled to color: {currentSelectedColor}");
-        }
+        // Color cycling removed - now handled by build menu selection
 
         // All highlighting code removed to prevent paint interference
 
@@ -328,26 +508,61 @@ namespace TorvaldsPainters
             // Handle mallet interactions using proper input system
             if (Player.m_localPlayer != null && ZInput.instance != null)
             {
-                // Check if the player can take input (no menus open, not typing in chat, etc.)
-                if (!Player.m_localPlayer.TakeInput())
-                {
-                    return; // Don't process painting input when menus are open
-                }
-                
                 var rightItem = Player.m_localPlayer.GetRightItem();
                 if (rightItem != null && rightItem.m_shared.m_name == "$item_painting_mallet")
                 {
+                    // Check for color swatch selection in build menu
+                    CheckForColorSwatchSelection(Player.m_localPlayer);
+                    
+                    // Check if the player can take input (no menus open, not typing in chat, etc.)
+                    if (!Player.m_localPlayer.TakeInput())
+                    {
+                        return; // Don't process painting input when menus are open
+                    }
+                    
                     // Left-click to paint using proper input
                     if (ZInput.GetButtonDown("Attack"))
                     {
                         PaintAtLook();
                     }
                     
-                    // Right-click to cycle colors
-                    if (ZInput.GetButtonDown("Block"))
+                    // Right-click color cycling removed - now use build menu to select colors
+                }
+            }
+        }
+        
+        // Check if a color swatch is currently selected in the build pieces
+        private void CheckForColorSwatchSelection(Player player)
+        {
+            if (player.m_buildPieces != null)
+            {
+                try
+                {
+                    // Get the currently selected piece index
+                    var selectedPiece = player.m_buildPieces.GetSelectedPiece();
+                    if (selectedPiece != null)
                     {
-                        CycleColor();
+                        var colorInfo = selectedPiece.GetComponent<ColorSwatchInfo>();
+                        if (colorInfo != null && colorInfo.colorName != currentSelectedColor)
+                        {
+                            // A color swatch is selected and it's different from current
+                            currentSelectedColor = colorInfo.colorName;
+                            
+                            // Update color index for consistency
+                            var colorKeys = VikingColors.Keys.ToList();
+                            colorIndex = colorKeys.IndexOf(colorInfo.colorName);
+                            
+                            // Show color selection message
+                            player.Message(MessageHud.MessageType.Center, $"🎨 Selected: {colorInfo.colorName}");
+                            
+                            Jotunn.Logger.LogInfo($"🎨 Color selected from build menu: {colorInfo.colorName}");
+                        }
                     }
+                }
+                catch (System.Exception ex)
+                {
+                    // Ignore errors - this is just a monitoring function
+                    Jotunn.Logger.LogDebug($"Color selection check error: {ex.Message}");
                 }
             }
         }
@@ -401,4 +616,75 @@ namespace TorvaldsPainters
             }
         }
     }
+    
+    // Component to store color information on color swatch pieces
+    public class ColorSwatchInfo : MonoBehaviour
+    {
+        public string colorName;
+    }
+    
+    // Go back to the PlacePiece approach but add logging to see what's happening
+    
+    // Enhanced PlacePiece patch with better color selection detection
+    [HarmonyPatch(typeof(Player), "PlacePiece")]
+    public static class PlayerPlacePiecePatch
+    {
+        static bool Prefix(Player __instance, Piece piece)
+        {
+            Jotunn.Logger.LogInfo($"🎨 PlacePiece called with piece: {piece?.name ?? "null"}");
+            
+            // Check if this is a color swatch piece
+            var colorInfo = piece?.GetComponent<ColorSwatchInfo>();
+            if (colorInfo != null)
+            {
+                Jotunn.Logger.LogInfo($"🎨 Found color swatch piece: {colorInfo.colorName}");
+                
+                // This is a color swatch - set the color immediately
+                TorvaldsPainters.currentSelectedColor = colorInfo.colorName;
+                
+                // Update color index for consistency
+                var colorKeys = TorvaldsPainters.VikingColors.Keys.ToList();
+                TorvaldsPainters.colorIndex = colorKeys.IndexOf(colorInfo.colorName);
+                
+                // Show color selection message
+                __instance.Message(MessageHud.MessageType.Center, $"🎨 Selected: {colorInfo.colorName}");
+                
+                Jotunn.Logger.LogInfo($"🎨 Successfully selected color: {colorInfo.colorName}");
+                
+                // Prevent actual piece placement
+                return false;
+            }
+            else
+            {
+                Jotunn.Logger.LogInfo($"🎨 PlacePiece: Not a color swatch piece");
+            }
+            
+            // Allow normal placement for non-color-swatch pieces
+            return true;
+        }
+    }
+    
+    // Prevent ghost cubes by intercepting UpdatePlacementGhost
+    [HarmonyPatch(typeof(Player), "UpdatePlacementGhost")]
+    public static class PlayerUpdatePlacementGhostPatch
+    {
+        static bool Prefix(Player __instance)
+        {
+            // If the placement ghost is a color swatch, destroy it immediately
+            if (__instance.m_placementGhost != null)
+            {
+                var colorInfo = __instance.m_placementGhost.GetComponent<ColorSwatchInfo>();
+                if (colorInfo != null)
+                {
+                    // This is a color swatch ghost - destroy it
+                    Object.DestroyImmediate(__instance.m_placementGhost);
+                    __instance.m_placementGhost = null;
+                    return false; // Skip the normal ghost update
+                }
+            }
+            return true; // Allow normal ghost update for non-color-swatch pieces
+        }
+    }
+    
+    // The placement ghost issue should be resolved by clearing m_placementGhost in PlacePiece patch
 }
