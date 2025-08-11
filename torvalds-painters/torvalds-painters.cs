@@ -260,28 +260,10 @@ namespace TorvaldsPainters
         }
         
         // Input handling variables
-        private static ButtonConfig paintApplyButton;
-        private static ButtonConfig paintCycleButton;
         
         private void RegisterInputs()
         {
-            // Define custom input buttons
-            paintApplyButton = new ButtonConfig 
-            { 
-                Name = "Paint_Apply", 
-                HintToken = "$paint_apply_hint"
-            };
-            
-            paintCycleButton = new ButtonConfig 
-            { 
-                Name = "Paint_Cycle", 
-                HintToken = "$paint_cycle_hint"
-            };
-            
-            InputManager.Instance.AddButton(PluginGUID, paintApplyButton);
-            InputManager.Instance.AddButton(PluginGUID, paintCycleButton);
-            
-            // Add key hints for the mallet
+            // Add key hints for the mallet - no custom input registration needed
             KeyHintManager.Instance.AddKeyHint(new KeyHintConfig 
             {
                 Item = "TorvaldsMallet",
@@ -292,7 +274,7 @@ namespace TorvaldsPainters
                 }
             });
             
-            Jotunn.Logger.LogInfo("🎨 Registered painting mallet inputs and key hints");
+            Jotunn.Logger.LogInfo("🎨 Registered painting mallet key hints");
         }
         
         // Paint the piece the player is looking at
