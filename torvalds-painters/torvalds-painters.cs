@@ -328,6 +328,12 @@ namespace TorvaldsPainters
             // Handle mallet interactions using proper input system
             if (Player.m_localPlayer != null && ZInput.instance != null)
             {
+                // Check if the player can take input (no menus open, not typing in chat, etc.)
+                if (!Player.m_localPlayer.TakeInput())
+                {
+                    return; // Don't process painting input when menus are open
+                }
+                
                 var rightItem = Player.m_localPlayer.GetRightItem();
                 if (rightItem != null && rightItem.m_shared.m_name == "$item_painting_mallet")
                 {

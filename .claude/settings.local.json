@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "WebFetch(domain:valheim-modding.github.io)",
-      "Bash(dotnet build:*)"
+      "Bash(dotnet build:*)",
+      "Bash(find:*)"
     ],
     "deny": []
   }
