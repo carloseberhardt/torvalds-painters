@@ -37,10 +37,10 @@ This is "Torvald's Affordable Painters" - a Valheim mod built with the Jötunn m
 - **Banner Colors**: 6 vibrant colors (black, white, red, blue, green, yellow)
 - **Color Values**: Use Color components > 1.0 for brightness (HDR-like effect)
 
-#### Painting Mallet Tool (torvalds-painters.cs:85-155)
-- **Custom Item**: Cloned from vanilla Hammer with modified properties
-- **Tool Behavior**: Right-click cycles colors, left-click applies paint
-- **No Build Mode**: Stripped of PieceTable to avoid conflicts with building system
+#### Painting Mallet Tool (torvalds-painters.cs:116-174)
+- **Proper CustomItem**: Uses Jötunn's CustomItem approach with Hammer cloning for visuals
+- **Tool Stance**: Links to empty CustomPieceTable for proper tool behavior (no punch/block animations)
+- **Input System**: Left-click paints, right-click opens color palette GUI
 - **Recipe**: Wood(10) + LeatherScraps(5) + Coal(1)
 
 #### Color Application (torvalds-painters.cs:210-232)
@@ -65,11 +65,18 @@ This is "Torvald's Affordable Painters" - a Valheim mod built with the Jötunn m
 - **Harmony**: Runtime method patching
 
 ### Important Design Decisions
-- **Direct Tool Approach**: Uses custom tool instead of build pieces for simplicity
+- **Proper Tool Implementation**: Uses Jötunn CustomItem + empty PieceTable for authentic tool stance
+- **Native GUI**: Uses Jötunn's wood panel system for color picker that matches game aesthetics
+- **Input Manager Integration**: Proper input handling with KeyHints instead of raw Input calls
 - **MaterialPropertyBlock**: Avoids material cloning issues while preserving textures
 - **Minimal Patches**: Only patches Piece.Awake for color restoration
-- **Color Contamination Prevention**: Disabled highlighting system that was corrupting colors
 - **HDR Colors**: Uses values > 1.0 for vibrant appearance in game's lighting
+
+### New Features Added
+- **Native Color Picker GUI**: Wood panel with 11 color buttons in grid layout
+- **Proper Tool Stance**: No more weapon animations when using the mallet
+- **KeyHints Integration**: HUD shows proper controls when mallet is equipped
+- **Localization Support**: All text uses tokens for translation support
 
 ## Development Notes
 - The mod uses a streamlined approach compared to typical Jötunn mods

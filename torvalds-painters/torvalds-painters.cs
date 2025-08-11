@@ -5,8 +5,36 @@ using Jotunn.Utils;
 using Jotunn.Configs;
 using HarmonyLib;
 using UnityEngine;
+using UnityEngine.UI;
 using System.Collections.Generic;
 using System.Linq;
+
+// MaterialMan extension methods for easier usage
+public static class MaterialManExtensions
+{
+    public static MaterialMan.PropertyContainer GetPropertyContainer(
+        this MaterialMan materialManager, GameObject gameObject)
+    {
+        int instanceId = gameObject.GetInstanceID();
+        
+        if (!materialManager.m_blocks.TryGetValue(instanceId, out MaterialMan.PropertyContainer propertyContainer))
+        {
+            gameObject.AddComponent<MaterialManNotifier>();
+            propertyContainer = new MaterialMan.PropertyContainer(gameObject, materialManager.m_propertyBlock);
+            propertyContainer.MarkDirty += materialManager.QueuePropertyUpdate;
+            materialManager.m_blocks.Add(instanceId, propertyContainer);
+        }
+        
+        return propertyContainer;
+    }
+    
+    public static MaterialMan.PropertyContainer SetValue<T>(
+        this MaterialMan.PropertyContainer propertyContainer, int propertyId, T value)
+    {
+        propertyContainer.SetValue(propertyId, value);
+        return propertyContainer;
+    }
+}
 
 namespace TorvaldsPainters
 {
@@ -48,10 +76,7 @@ namespace TorvaldsPainters
         public static string currentSelectedColor = "Natural Wood";
         public static int colorIndex = 2;
         
-        // Piece highlighting
-        private static Piece currentHoveredPiece = null;
-        private static Material originalMaterial = null;
-        private static Renderer[] originalRenderers = null;
+        // Piece highlighting completely removed to prevent paint interference
         
         // No GUI needed - using simple cycling
 
@@ -73,7 +98,9 @@ namespace TorvaldsPainters
         {
             try
             {
+                CreatePaintingMalletTable();
                 CreatePaintingMallet();
+                RegisterInputs();
                 Jotunn.Logger.LogInfo("✅ Custom painting mallet created successfully!");
             }
             catch (System.Exception ex)
@@ -82,75 +109,88 @@ namespace TorvaldsPainters
             }
         }
         
+        // Empty piece table for proper tool stance
+        private static CustomPieceTable paintingPieceTable;
+        
+        private void CreatePaintingMalletTable()
+        {
+            // Create empty piece table for tool stance
+            var tableConfig = new PieceTableConfig
+            {
+                UseCategories = false,
+                UseCustomCategories = true,
+                CustomCategories = System.Array.Empty<string>(),
+                CanRemovePieces = false
+            };
+            
+            paintingPieceTable = new CustomPieceTable("_PaintTable", tableConfig);
+            PieceManager.Instance.AddPieceTable(paintingPieceTable);
+            
+            Jotunn.Logger.LogInfo("🎨 Created empty piece table for painting mallet");
+        }
+        
         private void CreatePaintingMallet()
         {
-            // Clone the hammer prefab directly - simple and works
-            var hammerPrefab = PrefabManager.Instance.GetPrefab("Hammer");
-            if (hammerPrefab == null)
+            // Create ItemConfig with recipe
+            var itemConfig = new ItemConfig
             {
-                Jotunn.Logger.LogError("Could not find Hammer prefab!");
-                return;
-            }
-            
-            var malletPrefab = PrefabManager.Instance.CreateClonedPrefab("PaintingMallet", hammerPrefab);
-            
-            // Configure the item as a simple tool (not a building tool)
-            var itemDrop = malletPrefab.GetComponent<ItemDrop>();
-            itemDrop.m_itemData.m_shared.m_name = "$item_painting_mallet";
-            itemDrop.m_itemData.m_shared.m_description = "$item_painting_mallet_desc";
-            itemDrop.m_itemData.m_shared.m_itemType = ItemDrop.ItemData.ItemType.Tool;
-            
-            // Set as a building tool like the hammer
-            itemDrop.m_itemData.m_shared.m_buildPieces = null; // Will be set by CreatePaintingPieceTable
-            
-            // Remove PieceTable to avoid build mode conflicts
-            itemDrop.m_itemData.m_shared.m_buildPieces = null;
-            
-            // CRITICAL: Remove all weapon/attack behavior completely
-            itemDrop.m_itemData.m_shared.m_attack.m_attackStamina = 0f; // No stamina cost
-            itemDrop.m_itemData.m_shared.m_attack.m_attackAnimation = ""; // No attack animation
-            itemDrop.m_itemData.m_shared.m_attack.m_attackRange = 0f; // No attack range
-            
-            // Remove ALL damage so it's not a weapon
-            itemDrop.m_itemData.m_shared.m_damages.m_blunt = 0f;
-            itemDrop.m_itemData.m_shared.m_damages.m_slash = 0f;
-            itemDrop.m_itemData.m_shared.m_damages.m_pierce = 0f;
-            itemDrop.m_itemData.m_shared.m_damages.m_fire = 0f;
-            itemDrop.m_itemData.m_shared.m_damages.m_frost = 0f;
-            itemDrop.m_itemData.m_shared.m_damages.m_lightning = 0f;
-            itemDrop.m_itemData.m_shared.m_damages.m_poison = 0f;
-            itemDrop.m_itemData.m_shared.m_damages.m_spirit = 0f;
-            
-            // Also disable blocking
-            itemDrop.m_itemData.m_shared.m_blockPower = 0f;
-            itemDrop.m_itemData.m_shared.m_deflectionForce = 0f;
-            itemDrop.m_itemData.m_shared.m_timedBlockBonus = 1f;
-            
-            // Tool properties for proper durability system
-            itemDrop.m_itemData.m_shared.m_useDurability = true;
-            itemDrop.m_itemData.m_shared.m_maxDurability = 200;
-            itemDrop.m_itemData.m_shared.m_durabilityPerLevel = 50f;
-            itemDrop.m_itemData.m_shared.m_canBeReparied = true;
-            itemDrop.m_itemData.m_shared.m_toolTier = 2;
-            
-            Jotunn.Logger.LogInfo("🎨 Created simple painting mallet tool without PieceTable");
-            
-            // Customize appearance to distinguish from regular hammer
-            CustomizePaintingMalletAppearance(malletPrefab);
-            
-            // Add custom item with recipe
-            var itemConfig = new ItemConfig();
+                Name = "$item_painting_mallet",
+                Description = "$item_painting_mallet_desc"
+            };
             itemConfig.AddRequirement(new RequirementConfig("Wood", 10));
             itemConfig.AddRequirement(new RequirementConfig("LeatherScraps", 5));
-            itemConfig.AddRequirement(new RequirementConfig("Coal", 1)); // For the paint
+            itemConfig.AddRequirement(new RequirementConfig("Coal", 1));
             
-            ItemManager.Instance.AddItem(new CustomItem(malletPrefab, false, itemConfig));
+            // Create CustomItem using Jötunn approach - clone hammer for visuals
+            var mallet = new CustomItem("TorvaldsMallet", "Hammer", itemConfig);
+            ItemManager.Instance.AddItem(mallet);
+            
+            // Configure as proper tool (not weapon)
+            var shared = mallet.ItemDrop.m_itemData.m_shared;
+            
+            // Link to empty piece table for tool stance
+            shared.m_buildPieces = paintingPieceTable.PieceTable;
+            
+            // Tool behavior - no weapon properties
+            shared.m_itemType = ItemDrop.ItemData.ItemType.Tool;
+            shared.m_useDurability = true;
+            shared.m_maxDurability = 200;
+            shared.m_durabilityPerLevel = 50f;
+            shared.m_canBeReparied = true;
+            shared.m_toolTier = 2;
+            
+            // Remove ALL weapon behavior
+            shared.m_damages = new HitData.DamageTypes(); // Zero damage
+            shared.m_blockPower = 0f;
+            shared.m_timedBlockBonus = 0f;
+            shared.m_deflectionForce = 0f;
+            
+            // No attack animations
+            shared.m_attack.m_attackAnimation = "";
+            shared.m_attack.m_attackStamina = 0f;
+            shared.m_attack.m_attackRange = 0f;
+            shared.m_secondaryAttack.m_attackAnimation = "";
+            
+            Jotunn.Logger.LogInfo("🎨 Created proper painting mallet tool with empty piece table");
+            
+            // Customize appearance
+            CustomizePaintingMalletAppearance(mallet.ItemPrefab);
             
             // Add localization
+            AddLocalization();
+        }
+        
+        private void AddLocalization()
+        {
+            // Add all localization tokens
             Localization.AddTranslation("English", new Dictionary<string, string>
             {
                 {"item_painting_mallet", "Torvald's Painting Mallet"},
-                {"item_painting_mallet_desc", "A fine mallet for painting building pieces! Left-click to paint, right-click to cycle colors."}
+                {"item_painting_mallet_desc", "A fine mallet for painting building pieces! Left-click to paint, right-click to cycle colors."},
+                {"paint_apply_hint", "Apply Paint"},
+                {"paint_cycle_hint", "Cycle Color"},
+                {"paint_applied", "🎨 Painted with"},
+                {"paint_cannot_paint", "❌ Cannot paint this object"}
             });
         }
         
@@ -175,14 +215,6 @@ namespace TorvaldsPainters
                     }
                 }
                 
-                // Try to customize the icon if possible
-                var itemDrop = malletPrefab.GetComponent<ItemDrop>();
-                if (itemDrop?.m_itemData?.m_shared?.m_icons?.Length > 0)
-                {
-                    // Note: Icon customization might require additional asset work
-                    Jotunn.Logger.LogInfo("🎨 Found icon to customize");
-                }
-                
                 Jotunn.Logger.LogInfo("🎨 Customized painting mallet appearance with paint color tint");
             }
             catch (System.Exception ex)
@@ -191,34 +223,30 @@ namespace TorvaldsPainters
             }
         }
         
-        // No longer creating color pieces - using direct tool approach
+        // Color selection now handled by GUI picker
         
-        // Cycle through available colors
-        public static void CycleColor(bool forward)
-        {
-            var colorKeys = new List<string>(VikingColors.Keys);
-            if (forward)
-                colorIndex = (colorIndex + 1) % colorKeys.Count;
-            else
-                colorIndex = (colorIndex - 1 + colorKeys.Count) % colorKeys.Count;
-                
-            currentSelectedColor = colorKeys[colorIndex];
-            Jotunn.Logger.LogInfo($"Selected color: {currentSelectedColor}");
-        }
-        
-        // Apply color to building piece while preserving texture
+        // Apply color to building piece using MaterialMan for proper persistence
         public static void ApplyColorToPiece(Piece piece, string colorName)
         {
             if (!VikingColors.TryGetValue(colorName, out Color color))
                 return;
                 
-            // Apply color using MaterialPropertyBlock to preserve original texture
-            var renderers = piece.GetComponentsInChildren<MeshRenderer>();
-            foreach (var renderer in renderers)
+            // Use MaterialMan for proper color application that survives highlighting
+            if (MaterialMan.instance != null)
             {
-                var materialPropertyBlock = new MaterialPropertyBlock();
-                materialPropertyBlock.SetColor("_Color", color);
-                renderer.SetPropertyBlock(materialPropertyBlock);
+                MaterialMan.instance.GetPropertyContainer(piece.gameObject)
+                    .SetValue(ShaderProps._Color, color);
+            }
+            else
+            {
+                // Fallback to direct MaterialPropertyBlock if MaterialMan unavailable
+                var renderers = piece.GetComponentsInChildren<MeshRenderer>();
+                foreach (var renderer in renderers)
+                {
+                    var materialPropertyBlock = new MaterialPropertyBlock();
+                    materialPropertyBlock.SetColor("_Color", color);
+                    renderer.SetPropertyBlock(materialPropertyBlock);
+                }
             }
             
             // Store color data on the piece for persistence
@@ -231,8 +259,44 @@ namespace TorvaldsPainters
             Jotunn.Logger.LogInfo($"Applied {colorName} to piece {piece.name}");
         }
         
-        // Try to paint the piece the player is looking at (called from input)
-        private void TryPaintPiece()
+        // Input handling variables
+        private static ButtonConfig paintApplyButton;
+        private static ButtonConfig paintCycleButton;
+        
+        private void RegisterInputs()
+        {
+            // Define custom input buttons
+            paintApplyButton = new ButtonConfig 
+            { 
+                Name = "Paint_Apply", 
+                HintToken = "$paint_apply_hint"
+            };
+            
+            paintCycleButton = new ButtonConfig 
+            { 
+                Name = "Paint_Cycle", 
+                HintToken = "$paint_cycle_hint"
+            };
+            
+            InputManager.Instance.AddButton(PluginGUID, paintApplyButton);
+            InputManager.Instance.AddButton(PluginGUID, paintCycleButton);
+            
+            // Add key hints for the mallet
+            KeyHintManager.Instance.AddKeyHint(new KeyHintConfig 
+            {
+                Item = "TorvaldsMallet",
+                ButtonConfigs = new[] 
+                {
+                    new ButtonConfig { Name = "Attack", HintToken = "$paint_apply_hint" },
+                    new ButtonConfig { Name = "Block", HintToken = "$paint_cycle_hint" }
+                }
+            });
+            
+            Jotunn.Logger.LogInfo("🎨 Registered painting mallet inputs and key hints");
+        }
+        
+        // Paint the piece the player is looking at
+        private void PaintAtLook()
         {
             var player = Player.m_localPlayer;
             if (player == null) return;
@@ -249,87 +313,52 @@ namespace TorvaldsPainters
                 if (piece != null)
                 {
                     ApplyColorToPiece(piece, currentSelectedColor);
-                    player.Message(MessageHud.MessageType.TopLeft, $"🎨 Painted with {currentSelectedColor}!");
+                    player.Message(MessageHud.MessageType.TopLeft, $"$paint_applied {currentSelectedColor}!");
                     Jotunn.Logger.LogInfo($"🎨 Painted {piece.name} with {currentSelectedColor}");
                 }
                 else
                 {
-                    player.Message(MessageHud.MessageType.TopLeft, "❌ Cannot paint this object");
+                    player.Message(MessageHud.MessageType.TopLeft, "$paint_cannot_paint");
                 }
             }
+        }
+        
+        // Cycle to next color
+        private void CycleColor()
+        {
+            var colorKeys = VikingColors.Keys.ToList();
+            colorIndex = (colorIndex + 1) % colorKeys.Count;
+            currentSelectedColor = colorKeys[colorIndex];
+            
+            var player = Player.m_localPlayer;
+            if (player != null)
+            {
+                player.Message(MessageHud.MessageType.Center, $"🎨 Selected: {currentSelectedColor}");
+            }
+            
+            Jotunn.Logger.LogInfo($"🎨 Cycled to color: {currentSelectedColor}");
         }
 
-        // Clear piece highlighting
-        private static void ClearHighlight()
-        {
-            if (currentHoveredPiece != null && originalRenderers != null)
-            {
-                // Restore original materials
-                for (int i = 0; i < originalRenderers.Length; i++)
-                {
-                    if (originalRenderers[i] != null && originalRenderers[i].materials.Length > 0)
-                    {
-                        var materials = originalRenderers[i].materials;
-                        for (int j = 0; j < materials.Length; j++)
-                        {
-                            // Reset any highlight effects - this is simplified but should work
-                            originalRenderers[i].materials[j].SetFloat("_Emission", 0f);
-                        }
-                    }
-                }
-                
-                currentHoveredPiece = null;
-                originalRenderers = null;
-            }
-        }
-        
-        // DISABLED: Highlighting was contaminating all colors by modifying material.color directly!
-        // This was the cause of the yellow tint and broken colors
-        private static void HighlightPiece(Piece piece)
-        {
-            // Highlighting disabled until we can implement it properly
-            // The issue was that we were modifying material.color directly
-            // and never properly restoring the original values
-        }
-        
-        // DISABLED: Hover system was contaminating colors
-        private void UpdatePieceHover()
-        {
-            // Hover highlighting disabled - was causing color contamination
-            // The painting still works without visual feedback
-        }
+        // All highlighting code removed to prevent paint interference
 
         private void Update()
         {
-            // Handle mallet interactions
-            if (Player.m_localPlayer != null)
+            // Handle mallet interactions using proper input system
+            if (Player.m_localPlayer != null && ZInput.instance != null)
             {
                 var rightItem = Player.m_localPlayer.GetRightItem();
                 if (rightItem != null && rightItem.m_shared.m_name == "$item_painting_mallet")
                 {
-                    // DISABLED: Update piece hovering and highlighting - was contaminating colors
-                    // UpdatePieceHover();
-                    
-                    // Right-click to cycle colors  
-                    if (Input.GetMouseButtonDown(1))
+                    // Left-click to paint using proper input
+                    if (ZInput.GetButtonDown("Attack"))
                     {
-                        CycleColor(true);
-                        Player.m_localPlayer.Message(MessageHud.MessageType.Center, $"🎨 Selected: {currentSelectedColor}");
+                        PaintAtLook();
                     }
                     
-                    // Left-click to paint
-                    if (Input.GetMouseButtonDown(0))
+                    // Right-click to cycle colors
+                    if (ZInput.GetButtonDown("Block"))
                     {
-                        TryPaintPiece();
-                    }
-                }
-                else
-                {
-                    // Clear highlight when not using painting mallet
-                    ClearHighlight();
-                    if (Hud.instance?.m_hoverName != null)
-                    {
-                        Hud.instance.m_hoverName.gameObject.SetActive(false);
+                        CycleColor();
                     }
                 }
             }
@@ -358,14 +387,28 @@ namespace TorvaldsPainters
             if (nview == null || !nview.IsValid()) return;
             
             string colorName = nview.GetZDO().GetString("TorvaldsPainters.Color", "");
-            if (!string.IsNullOrEmpty(colorName) && TorvaldsPainters.VikingColors.TryGetValue(colorName, out Color color))
+            if (!string.IsNullOrEmpty(colorName))
             {
-                var renderers = __instance.GetComponentsInChildren<MeshRenderer>();
-                foreach (var renderer in renderers)
+                TorvaldsPainters.ApplyColorToPiece(__instance, colorName);
+            }
+        }
+    }
+    
+    // Restore painted colors after vanilla highlight system clears them
+    [HarmonyPatch(typeof(WearNTear), "ResetHighlight")]
+    public static class WearNTearResetHighlightPatch
+    {
+        static void Postfix(WearNTear __instance)
+        {
+            var piece = __instance.GetComponent<Piece>();
+            var nview = __instance.GetComponent<ZNetView>();
+            
+            if (piece && nview?.IsValid() == true)
+            {
+                string colorName = nview.GetZDO().GetString("TorvaldsPainters.Color", "");
+                if (!string.IsNullOrEmpty(colorName))
                 {
-                    var block = new MaterialPropertyBlock();
-                    block.SetColor("_Color", color);
-                    renderer.SetPropertyBlock(block);
+                    TorvaldsPainters.ApplyColorToPiece(piece, colorName);
                 }
             }
         }
