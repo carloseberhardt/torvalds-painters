@@ -23,36 +23,83 @@ A Valheim mod that lets you paint building pieces with a variety of colors. Torv
 
 After running the mod once, you'll find a config file at `BepInEx/config/com.torvald.painters.cfg`.
 
-### Changing the Recipe
+### Recipe Configuration
 
-You can modify what materials are needed to craft the mallet:
-
+```ini
+[Recipe]
+# Materials needed to craft the painting mallet
+Materials = Wood:10,LeatherScraps:5,Coal:1
+# Whether the mallet requires a workbench to craft
+RequireWorkbench = true
 ```
-# Default recipe
+
+**Recipe Examples:**
+```ini
+# Early game (default)
 Materials = Wood:10,LeatherScraps:5,Coal:1
 
-# Make it more expensive
+# Mid-game progression
 Materials = FineWood:8,Bronze:2,TrophyGreydwarf:1
 
-# Late game version
+# Late-game luxury
 Materials = BlackMetal:1,Silver:2,LoxPelt:1
+
+# Custom themed server
+Materials = YggdrasilWood:5,Crystal:3,SurtlingCore:2
 ```
 
-### Custom Colors
+### Color Customization
 
-Each color can be customized using RGB values (0.0 to 3.0):
+All 11 colors are individually configurable using RGB values (0.0 to 3.0):
 
-```
+```ini
 [Colors.WoodTones]
 DarkBrown = 0.6,0.3,0.1
+MediumBrown = 1.0,1.0,1.0
 NaturalWood = 1.0,1.0,1.0
+LightBrown = 1.3,1.1,0.9
+PaleWood = 1.5,1.3,1.1
 
-[Colors.PaintColors]  
+[Colors.PaintColors]
+Black = 0.1,0.1,0.1
+White = 2.5,2.5,2.5
 Red = 1.5,0.2,0.2
 Blue = 0.2,0.3,1.5
+Green = 0.3,1.5,0.3
+Yellow = 1.8,1.6,0.2
 ```
 
-Note: You need to restart the game for config changes to take effect.
+### Advanced Filtering Options
+
+Control what objects can be painted:
+
+```ini
+[Filtering]
+# Building categories that can be painted (flags: Building, Furniture, Crafting, Misc, All)
+AllowedCategories = Building, Furniture
+# Functional groups to exclude (flags: Stations, Production, Storage, Beds, PortalsWard, Transport, etc.)
+ExcludedFunctional = Stations, Production, Storage, Beds, PortalsWard, Transport
+# Material types that can be painted (flags: Wood, Stone, Metal, Marble, All)
+AllowedMaterials = Wood, Stone, Marble
+# Specific prefabs to always allow (comma-separated)
+WhitelistPrefabs = 
+# Specific prefabs to always block (comma-separated, overrides whitelist)
+BlacklistPrefabs = 
+```
+
+### Debug Options
+
+```ini
+[Debug]
+# Logging level (None=0, Basic=1, Detailed=2, Debug=3)
+LogLevel = Basic
+# Maximum painting distance in meters
+MaxPaintDistance = 8.0
+# Require build permission to paint objects
+RequireBuildPermission = true
+```
+
+**Note:** You need to restart the game for config changes to take effect.
 
 ## Server Administrators
 
@@ -69,6 +116,11 @@ Install with a mod manager or manually place the files in your BepInEx/plugins f
 - Painted pieces briefly revert to normal color when highlighted, but return to painted color afterwards
 
 ## Changelog
+
+**v1.0.1**
+- Fixed major painting bug where you could accidentally paint objects behind non-paintable pieces
+- Improved user feedback when painting is blocked by objects like workbenches or forges
+- Enhanced raycasting system for more consistent painting behavior
 
 **v1.0.0**
 - Added configurable recipe system

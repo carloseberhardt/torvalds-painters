@@ -44,10 +44,12 @@ Creates a Thunderstore-ready package in the `Package/` folder.
 This project uses:
 - **BepInEx** for mod loading and configuration
 - **Jötunn** framework for Valheim integration
-- **Harmony** for minimal runtime patching
+- **Harmony** for minimal runtime patching (color persistence + input handling)
+- **Advanced raycasting system** with proper occlusion handling
+- **Policy-based filtering** for paintable objects with configurable rules
 - **Custom configuration system** for dynamic recipes and colors
 
-Key architectural decisions are documented in `CLAUDE.md`.
+Key architectural decisions and recent bug fixes are documented in `CLAUDE.md`.
 
 ## The Mod
 

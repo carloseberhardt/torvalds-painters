@@ -63,6 +63,14 @@ This is "Torvald's Affordable Painters" - a Valheim mod built with the Jötunn m
 - **ZDO Persistence**: Stores color data in `TorvaldsPainters.Color` ZDO field
 - **Network Sync**: Colors persist and sync across multiplayer sessions
 
+#### Raycasting System (torvalds-painters.cs:737-820)
+- **Enhanced Raycast**: Uses proper Valheim layer masks for building pieces (piece, piece_nonsolid, etc.)
+- **Occlusion Model**: First Piece hit acts as occluder - no painting through non-paintable objects
+- **Policy Engine**: Flag-based filtering system with configurable category/material/functional rules
+- **Performance Optimized**: Uses RaycastNonAlloc and reusable buffers to avoid GC pressure
+- **Comprehensive Validation**: Build permission, renderer presence, ZNetView validation
+- **User Feedback**: Clear error messages when objects cannot be painted
+
 #### Restoration System (Harmony Patches)
 - **Piece.Awake Patch**: Restores painted colors when pieces load
 - **WearNTear.ResetHighlight Patch**: Re-applies colors after highlight clearing
