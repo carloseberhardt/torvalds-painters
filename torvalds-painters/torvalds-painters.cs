@@ -340,173 +340,87 @@ namespace TorvaldsPainters
                 return;
             }
             
-            // Create main panel using relative sizing (percentage of screen)
-            float screenWidth = Screen.width;
-            float screenHeight = Screen.height;
-            float panelWidth = Mathf.Min(screenWidth * 0.4f, 600f); // 40% of screen width, max 600px
-            float panelHeight = Mathf.Min(screenHeight * 0.5f, 450f); // 50% of screen height, max 450px
-            
+            // Simple fixed-size panel that works
             colorPickerPanel = GUIManager.Instance.CreateWoodpanel(
                 parent: GUIManager.CustomGUIFront.transform,
                 anchorMin: new Vector2(0.5f, 0.5f),
                 anchorMax: new Vector2(0.5f, 0.5f),
                 position: Vector2.zero,
-                width: panelWidth,
-                height: panelHeight,
+                width: 500f,
+                height: 400f,
                 draggable: false);
             
-            // Add title with native Valheim styling
+            // Big clear title
             var titleText = GUIManager.Instance.CreateText(
                 text: "Select Paint Color",
                 parent: colorPickerPanel.transform,
                 anchorMin: new Vector2(0.5f, 1f),
                 anchorMax: new Vector2(0.5f, 1f),
-                position: new Vector2(0f, -panelHeight * 0.08f), // 8% from top
+                position: new Vector2(0f, -30f),
                 font: GUIManager.Instance.Norse,
-                fontSize: Mathf.RoundToInt(panelHeight * 0.05f), // 5% of panel height
+                fontSize: 28,
                 color: GUIManager.Instance.ValheimOrange,
                 outline: true,
                 outlineColor: Color.black,
-                width: panelWidth * 0.8f, // 80% of panel width
-                height: panelHeight * 0.08f, // 8% of panel height
+                width: 400f,
+                height: 40f,
                 addContentSizeFitter: false);
             
-            // Apply native text styling
-            GUIManager.Instance.ApplyTextStyle(titleText.GetComponent<Text>(), GUIManager.Instance.ValheimOrange);
+            // Wood Stains section (left)
+            CreateSimpleSection("Wood Stains", new string[] {"Dark Brown", "Medium Brown", "Natural Wood", "Light Brown", "Pale Wood"}, -120f);
             
-            // Create color buttons in responsive grid layout based on panel size
-            int index = 0;
-            int columns = 4;
-            int rows = 3;
+            // Paint Colors section (right) 
+            CreateSimpleSection("Paint Colors", new string[] {"Black", "White", "Red", "Blue", "Green", "Yellow"}, 120f);
             
-            // Calculate sizes based on panel dimensions for responsiveness
-            float availableWidth = panelWidth * 0.85f; // Use 85% of panel width
-            float availableHeight = (panelHeight - 120f) * 0.8f; // Reserve space for title and close button
-            float buttonSize = Mathf.Min(availableWidth / (columns + 1), availableHeight / (rows + 1)) * 0.6f;
-            float spacingX = (availableWidth - (columns * buttonSize)) / (columns + 1);
-            float spacingY = (availableHeight - (rows * buttonSize)) / (rows + 1);
-            
-            float startX = -availableWidth / 2f + spacingX + buttonSize / 2f;
-            float startY = (availableHeight / 2f) - spacingY - buttonSize / 2f;
-            
-            foreach (var colorEntry in VikingColors)
-            {
-                int row = index / columns;
-                int col = index % columns;
-                float x = startX + col * (buttonSize + spacingX);
-                float y = startY - row * (buttonSize + spacingY);
-                
-                CreateColorButton(colorPickerPanel, colorEntry.Key, colorEntry.Value, new Vector2(x, y), buttonSize);
-                index++;
-            }
-            
-            // Add close button with native Valheim styling
+            // Close button
             var closeButton = GUIManager.Instance.CreateButton(
                 text: "Close",
                 parent: colorPickerPanel.transform,
                 anchorMin: new Vector2(0.5f, 0f),
                 anchorMax: new Vector2(0.5f, 0f),
-                position: new Vector2(0f, panelHeight * 0.1f), // 10% from bottom
-                width: panelWidth * 0.25f, // 25% of panel width
-                height: panelHeight * 0.08f); // 8% of panel height
-            
-            // Apply native button styling
-            GUIManager.Instance.ApplyButtonStyle(closeButton.GetComponent<Button>());
+                position: new Vector2(0f, 30f),
+                width: 100f,
+                height: 30f);
             closeButton.GetComponent<Button>().onClick.AddListener(CloseColorPicker);
             
             // Block player input while GUI is open
             GUIManager.BlockInput(true);
         }
         
-        private void CreateColorButton(GameObject parent, string colorName, Color color, Vector2 position, float size)
+        private void CreateSimpleSection(string sectionTitle, string[] colorNames, float xOffset)
         {
-            // Create button with native Valheim styling
-            var button = GUIManager.Instance.CreateButton(
-                text: "",
-                parent: parent.transform,
+            // Section header - simple and clear
+            var headerText = GUIManager.Instance.CreateText(
+                text: sectionTitle,
+                parent: colorPickerPanel.transform,
                 anchorMin: new Vector2(0.5f, 0.5f),
                 anchorMax: new Vector2(0.5f, 0.5f),
-                position: position,
-                width: size,
-                height: size);
-            
-            // Apply native button styling
-            GUIManager.Instance.ApplyButtonStyle(button.GetComponent<Button>());
-            
-            // Set button color with improved visibility
-            var image = button.GetComponent<UnityEngine.UI.Image>();
-            if (image != null)
-            {
-                // Create bright, distinctive display colors for GUI
-                Color displayColor;
-                switch (colorName)
-                {
-                    case "Dark Brown":
-                        displayColor = new Color(0.5f, 0.35f, 0.2f, 1f); // Rich dark brown
-                        break;
-                    case "Medium Brown": 
-                        displayColor = new Color(0.7f, 0.5f, 0.3f, 1f); // Medium brown
-                        break;
-                    case "Natural Wood":
-                        displayColor = new Color(0.85f, 0.7f, 0.5f, 1f); // Natural wood
-                        break;
-                    case "Light Brown":
-                        displayColor = new Color(0.9f, 0.8f, 0.6f, 1f); // Light brown
-                        break;
-                    case "Pale Wood":
-                        displayColor = new Color(0.95f, 0.9f, 0.8f, 1f); // Pale wood
-                        break;
-                    case "Black":
-                        displayColor = new Color(0.15f, 0.15f, 0.15f, 1f); // Dark but visible black
-                        break;
-                    case "White":
-                        displayColor = new Color(0.95f, 0.95f, 0.95f, 1f); // Clean white
-                        break;
-                    case "Red":
-                        displayColor = new Color(0.8f, 0.2f, 0.2f, 1f); // Vibrant red
-                        break;
-                    case "Blue":
-                        displayColor = new Color(0.2f, 0.4f, 0.8f, 1f); // Clear blue
-                        break;
-                    case "Green":
-                        displayColor = new Color(0.3f, 0.7f, 0.3f, 1f); // Bright green
-                        break;
-                    case "Yellow":
-                        displayColor = new Color(0.9f, 0.8f, 0.2f, 1f); // Bright yellow
-                        break;
-                    default:
-                        // Fallback - brighten any remaining colors
-                        displayColor = new Color(
-                            Mathf.Clamp01(color.r * 0.8f),
-                            Mathf.Clamp01(color.g * 0.8f), 
-                            Mathf.Clamp01(color.b * 0.8f),
-                            1f);
-                        break;
-                }
-                image.color = displayColor;
-            }
-            
-            // Add click handler
-            button.GetComponent<Button>().onClick.AddListener(() => SelectColor(colorName));
-            
-            // Add text label with native Valheim styling
-            var label = GUIManager.Instance.CreateText(
-                text: colorName,
-                parent: button.transform,
-                anchorMin: new Vector2(0.5f, 0f),
-                anchorMax: new Vector2(0.5f, 0f),
-                position: new Vector2(0f, -size * 0.4f), // Position relative to button size
+                position: new Vector2(xOffset, 120f),
                 font: GUIManager.Instance.AveriaSerifBold,
-                fontSize: Mathf.RoundToInt(size * 0.2f), // Font size relative to button size
-                color: GUIManager.Instance.ValheimBeige,
+                fontSize: 18,
+                color: GUIManager.Instance.ValheimOrange,
                 outline: true,
                 outlineColor: Color.black,
-                width: size * 1.5f, // Width relative to button size
-                height: size * 0.4f, // Height relative to button size
+                width: 200f,
+                height: 25f,
                 addContentSizeFitter: false);
             
-            // Apply native text styling
-            GUIManager.Instance.ApplyTextStyle(label.GetComponent<Text>(), GUIManager.Instance.ValheimBeige);
+            // Create buttons - one per color, reasonably sized
+            for (int i = 0; i < colorNames.Length; i++)
+            {
+                var colorButton = GUIManager.Instance.CreateButton(
+                    text: colorNames[i],
+                    parent: colorPickerPanel.transform,
+                    anchorMin: new Vector2(0.5f, 0.5f),
+                    anchorMax: new Vector2(0.5f, 0.5f),
+                    position: new Vector2(xOffset, 80f - (i * 35f)),
+                    width: 160f, // Reasonable width for text
+                    height: 30f);  // Reasonable height
+                
+                // Add click handler
+                string colorName = colorNames[i]; // Capture for closure
+                colorButton.GetComponent<Button>().onClick.AddListener(() => SelectColor(colorName));
+            }
         }
         
         private void SelectColor(string colorName)
