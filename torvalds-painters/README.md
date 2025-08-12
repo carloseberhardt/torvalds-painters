@@ -111,12 +111,6 @@ Torvald's business model is flexible - want to make his services more exclusive?
 
 Install with a mod manager or manually place the files in your BepInEx/plugins folder. Requires BepInEx and Jotunn.
 
-## Known Issues
-
-- Config changes require restarting the game
-- Very dark building pieces might not show color changes clearly
-- Painted pieces briefly revert to normal color when highlighted, but return to painted color afterwards
-
 ## Changelog
 
 **v1.1.0**
