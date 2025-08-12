@@ -121,7 +121,7 @@ namespace TorvaldsPainters
         
         private void CreatePaintingMalletTable()
         {
-            // Create empty piece table for proper tool stance
+            // Create piece table with default "paint mode" piece
             var tableConfig = new PieceTableConfig
             {
                 UseCategories = false,
@@ -131,9 +131,23 @@ namespace TorvaldsPainters
             };
             
             paintingPieceTable = new CustomPieceTable("_PaintTable", tableConfig);
+            
+            // Add a default "Paint Mode" piece to prevent "Nothing to build" message
+            var paintModeConfig = new PieceConfig
+            {
+                Name = "Torvald's Painting Mallet",
+                Description = "Left-click to smack on the paint, right-click to select paint color",
+                PieceTable = "_PaintTable",
+                Category = "Misc"
+            };
+            
+            // Use piece_repair as base - it's a tool mode piece with no ghost/cost like hammer repair
+            var paintModePiece = new CustomPiece("PaintMode", "piece_repair", paintModeConfig);
+            PieceManager.Instance.AddPiece(paintModePiece);
+            
             PieceManager.Instance.AddPieceTable(paintingPieceTable);
             
-            Jotunn.Logger.LogInfo("🎨 Created empty piece table for painting mallet");
+            Jotunn.Logger.LogInfo("🎨 Created piece table with default Paint Mode piece");
         }
         
         private void CreatePaintingMallet()
@@ -326,43 +340,54 @@ namespace TorvaldsPainters
                 return;
             }
             
-            // Create main panel (sized for 4x3 grid with labels)
+            // Create main panel using relative sizing (percentage of screen)
+            float screenWidth = Screen.width;
+            float screenHeight = Screen.height;
+            float panelWidth = Mathf.Min(screenWidth * 0.4f, 600f); // 40% of screen width, max 600px
+            float panelHeight = Mathf.Min(screenHeight * 0.5f, 450f); // 50% of screen height, max 450px
+            
             colorPickerPanel = GUIManager.Instance.CreateWoodpanel(
                 parent: GUIManager.CustomGUIFront.transform,
                 anchorMin: new Vector2(0.5f, 0.5f),
                 anchorMax: new Vector2(0.5f, 0.5f),
                 position: Vector2.zero,
-                width: 450f,
-                height: 300f,
+                width: panelWidth,
+                height: panelHeight,
                 draggable: false);
             
-            // Add title
-            GUIManager.Instance.CreateText(
+            // Add title with native Valheim styling
+            var titleText = GUIManager.Instance.CreateText(
                 text: "Select Paint Color",
                 parent: colorPickerPanel.transform,
                 anchorMin: new Vector2(0.5f, 1f),
                 anchorMax: new Vector2(0.5f, 1f),
-                position: new Vector2(0f, -30f),
-                font: GUIManager.Instance.AveriaSerifBold,
-                fontSize: 20,
+                position: new Vector2(0f, -panelHeight * 0.08f), // 8% from top
+                font: GUIManager.Instance.Norse,
+                fontSize: Mathf.RoundToInt(panelHeight * 0.05f), // 5% of panel height
                 color: GUIManager.Instance.ValheimOrange,
                 outline: true,
                 outlineColor: Color.black,
-                width: 300f,
-                height: 30f,
+                width: panelWidth * 0.8f, // 80% of panel width
+                height: panelHeight * 0.08f, // 8% of panel height
                 addContentSizeFitter: false);
             
-            // Create color buttons in a 4x3 grid with proper spacing
+            // Apply native text styling
+            GUIManager.Instance.ApplyTextStyle(titleText.GetComponent<Text>(), GUIManager.Instance.ValheimOrange);
+            
+            // Create color buttons in responsive grid layout based on panel size
             int index = 0;
             int columns = 4;
             int rows = 3;
-            float buttonSize = 50f;
-            float spacingX = 20f;
-            float spacingY = 35f; // Extra space for labels
-            float totalWidth = columns * buttonSize + (columns - 1) * spacingX;
-            float totalHeight = rows * buttonSize + (rows - 1) * spacingY;
-            float startX = -totalWidth / 2f + buttonSize / 2f;
-            float startY = totalHeight / 2f - buttonSize / 2f - 20f; // Offset from title
+            
+            // Calculate sizes based on panel dimensions for responsiveness
+            float availableWidth = panelWidth * 0.85f; // Use 85% of panel width
+            float availableHeight = (panelHeight - 120f) * 0.8f; // Reserve space for title and close button
+            float buttonSize = Mathf.Min(availableWidth / (columns + 1), availableHeight / (rows + 1)) * 0.6f;
+            float spacingX = (availableWidth - (columns * buttonSize)) / (columns + 1);
+            float spacingY = (availableHeight - (rows * buttonSize)) / (rows + 1);
+            
+            float startX = -availableWidth / 2f + spacingX + buttonSize / 2f;
+            float startY = (availableHeight / 2f) - spacingY - buttonSize / 2f;
             
             foreach (var colorEntry in VikingColors)
             {
@@ -375,16 +400,18 @@ namespace TorvaldsPainters
                 index++;
             }
             
-            // Add close button
+            // Add close button with native Valheim styling
             var closeButton = GUIManager.Instance.CreateButton(
                 text: "Close",
                 parent: colorPickerPanel.transform,
                 anchorMin: new Vector2(0.5f, 0f),
                 anchorMax: new Vector2(0.5f, 0f),
-                position: new Vector2(0f, 30f),
-                width: 100f,
-                height: 40f);
+                position: new Vector2(0f, panelHeight * 0.1f), // 10% from bottom
+                width: panelWidth * 0.25f, // 25% of panel width
+                height: panelHeight * 0.08f); // 8% of panel height
             
+            // Apply native button styling
+            GUIManager.Instance.ApplyButtonStyle(closeButton.GetComponent<Button>());
             closeButton.GetComponent<Button>().onClick.AddListener(CloseColorPicker);
             
             // Block player input while GUI is open
@@ -393,7 +420,7 @@ namespace TorvaldsPainters
         
         private void CreateColorButton(GameObject parent, string colorName, Color color, Vector2 position, float size)
         {
-            // Create button with color background
+            // Create button with native Valheim styling
             var button = GUIManager.Instance.CreateButton(
                 text: "",
                 parent: parent.transform,
@@ -402,6 +429,9 @@ namespace TorvaldsPainters
                 position: position,
                 width: size,
                 height: size);
+            
+            // Apply native button styling
+            GUIManager.Instance.ApplyButtonStyle(button.GetComponent<Button>());
             
             // Set button color with improved visibility
             var image = button.GetComponent<UnityEngine.UI.Image>();
@@ -459,21 +489,24 @@ namespace TorvaldsPainters
             // Add click handler
             button.GetComponent<Button>().onClick.AddListener(() => SelectColor(colorName));
             
-            // Add text label instead of tooltip to avoid null reference issues
+            // Add text label with native Valheim styling
             var label = GUIManager.Instance.CreateText(
                 text: colorName,
                 parent: button.transform,
                 anchorMin: new Vector2(0.5f, 0f),
                 anchorMax: new Vector2(0.5f, 0f),
-                position: new Vector2(0f, -20f),
+                position: new Vector2(0f, -size * 0.4f), // Position relative to button size
                 font: GUIManager.Instance.AveriaSerifBold,
-                fontSize: 12,
-                color: Color.white,
+                fontSize: Mathf.RoundToInt(size * 0.2f), // Font size relative to button size
+                color: GUIManager.Instance.ValheimBeige,
                 outline: true,
                 outlineColor: Color.black,
-                width: 80f,
-                height: 20f,
+                width: size * 1.5f, // Width relative to button size
+                height: size * 0.4f, // Height relative to button size
                 addContentSizeFitter: false);
+            
+            // Apply native text styling
+            GUIManager.Instance.ApplyTextStyle(label.GetComponent<Text>(), GUIManager.Instance.ValheimBeige);
         }
         
         private void SelectColor(string colorName)
