@@ -807,6 +807,24 @@ namespace TorvaldsPainters
         }
     }
     
+    // Prevent repair functionality when painting mallet is equipped
+    [HarmonyPatch(typeof(Player), "Repair")]
+    public static class PlayerRepairPatch
+    {
+        static bool Prefix(Player __instance)
+        {
+            // Check if painting mallet is equipped
+            var rightItem = __instance.GetRightItem();
+            if (rightItem?.m_shared.m_name == "$item_painting_mallet")
+            {
+                // Block repair functionality when our mallet is equipped
+                return false;
+            }
+            
+            return true; // Allow normal repair for other tools
+        }
+    }
+    
     // Restore painted colors when pieces are loaded
     [HarmonyPatch(typeof(Piece), "Awake")]
     public static class PieceAwakePatch
