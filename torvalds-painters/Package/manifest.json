@@ -1,8 +1,8 @@
 ﻿{
-  "name": "JotunnModStub",
-  "description": "",
-  "version_number": "0.0.1",
-  "website_url": "",
+  "name": "TorvaldsAffordablePainters",
+  "description": "A customizable painting system for Valheim building pieces. Paint your builds with 11 beautiful colors using a specialized mallet tool. Features configurable recipes perfect for server progression balancing and custom color support.",
+  "version_number": "1.0.0",
+  "website_url": "https://github.com/carloseberhardt/torvalds-painters",
   "dependencies": [
     "denikson-BepInExPack_Valheim-5.4.2202",
     "ValheimModding-Jotunn-2.24.3"

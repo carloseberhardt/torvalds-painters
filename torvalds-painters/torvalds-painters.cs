@@ -1,4 +1,5 @@
 using BepInEx;
+using BepInEx.Configuration;
 using Jotunn.Entities;
 using Jotunn.Managers;
 using Jotunn.Utils;
@@ -9,6 +10,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using System.Collections.Generic;
 using System.Linq;
+using System;
 
 // MaterialMan extension methods for easier usage
 public static class MaterialManExtensions
@@ -46,7 +48,31 @@ namespace TorvaldsPainters
     {
         public const string PluginGUID = "com.torvald.painters";
         public const string PluginName = "Torvald's Affordable Painters";
-        public const string PluginVersion = "0.1.0";
+        public const string PluginVersion = "1.0.0";
+        
+        // Configuration entries
+        #region Configuration
+        
+        // Recipe configuration - dynamic materials
+        private static ConfigEntry<string> RecipeConfig;
+        private static ConfigEntry<bool> RequireWorkbenchConfig;
+        
+        // Color configuration - Wood tones
+        private static ConfigEntry<string> DarkBrownColorConfig;
+        private static ConfigEntry<string> MediumBrownColorConfig;
+        private static ConfigEntry<string> NaturalWoodColorConfig;
+        private static ConfigEntry<string> LightBrownColorConfig;
+        private static ConfigEntry<string> PaleWoodColorConfig;
+        
+        // Color configuration - Paint colors
+        private static ConfigEntry<string> BlackColorConfig;
+        private static ConfigEntry<string> WhiteColorConfig;
+        private static ConfigEntry<string> RedColorConfig;
+        private static ConfigEntry<string> BlueColorConfig;
+        private static ConfigEntry<string> GreenColorConfig;
+        private static ConfigEntry<string> YellowColorConfig;
+        
+        #endregion
         
         // Use this class to add your own localization to the game
         public static CustomLocalization Localization = LocalizationManager.Instance.GetLocalization();
@@ -54,7 +80,7 @@ namespace TorvaldsPainters
         // Harmony instance for patches
         private Harmony harmony;
         
-        // Color values for painting - these work perfectly for the painting system
+        // Color values for painting - loaded from configuration with defaults
         public static readonly Dictionary<string, Color> VikingColors = new Dictionary<string, Color>()
         {
             // Wood shades - Natural Wood in center, 2 darker, 2 lighter
@@ -91,6 +117,12 @@ namespace TorvaldsPainters
             
             Jotunn.Logger.LogInfo("🎨 Torvald's Affordable Painters is loading...");
             
+            // Initialize configuration
+            InitializeConfiguration();
+            
+            // Initialize colors from configuration
+            InitializeColorsFromConfig();
+            
             // Initialize Harmony
             harmony = new Harmony(PluginGUID);
             harmony.PatchAll();
@@ -99,6 +131,224 @@ namespace TorvaldsPainters
             PrefabManager.OnVanillaPrefabsAvailable += AddCustomItems;
             
             Jotunn.Logger.LogInfo("🎨 Torvald's Affordable Painters ready for business!");
+        }
+        
+        private void InitializeConfiguration()
+        {
+            // Recipe configuration section - dynamic materials support
+            RecipeConfig = Config.Bind("Recipe", "Materials", "Wood:10,LeatherScraps:5,Coal:1",
+                new ConfigDescription("Recipe materials in format: Material1:Amount1,Material2:Amount2,etc.\n" +
+                "Examples:\n" +
+                "- Early game: \"Wood:10,LeatherScraps:5,Coal:1\"\n" +
+                "- Mid game: \"FineWood:8,Bronze:2,LeatherScraps:3\"\n" +
+                "- Late game: \"BlackMetal:1,Silver:2,LoxPelt:1\"\n" +
+                "Use exact Valheim item names (case sensitive)"));
+                
+            RequireWorkbenchConfig = Config.Bind("Recipe", "RequireWorkbench", true,
+                new ConfigDescription("Whether the painting mallet requires a workbench to craft"));
+            
+            // Wood tone colors configuration
+            DarkBrownColorConfig = Config.Bind("Colors.WoodTones", "DarkBrown", "0.6,0.3,0.1",
+                new ConfigDescription("RGB color values for Dark Brown (format: R,G,B with values 0.0-3.0)"));
+                
+            MediumBrownColorConfig = Config.Bind("Colors.WoodTones", "MediumBrown", "1.0,1.0,1.0",
+                new ConfigDescription("RGB color values for Medium Brown (format: R,G,B with values 0.0-3.0)"));
+                
+            NaturalWoodColorConfig = Config.Bind("Colors.WoodTones", "NaturalWood", "1.0,1.0,1.0",
+                new ConfigDescription("RGB color values for Natural Wood (format: R,G,B with values 0.0-3.0)"));
+                
+            LightBrownColorConfig = Config.Bind("Colors.WoodTones", "LightBrown", "1.3,1.1,0.9",
+                new ConfigDescription("RGB color values for Light Brown (format: R,G,B with values 0.0-3.0)"));
+                
+            PaleWoodColorConfig = Config.Bind("Colors.WoodTones", "PaleWood", "1.5,1.3,1.1",
+                new ConfigDescription("RGB color values for Pale Wood (format: R,G,B with values 0.0-3.0)"));
+            
+            // Paint colors configuration
+            BlackColorConfig = Config.Bind("Colors.PaintColors", "Black", "0.1,0.1,0.1",
+                new ConfigDescription("RGB color values for Black (format: R,G,B with values 0.0-3.0)"));
+                
+            WhiteColorConfig = Config.Bind("Colors.PaintColors", "White", "2.5,2.5,2.5",
+                new ConfigDescription("RGB color values for White (format: R,G,B with values 0.0-3.0)"));
+                
+            RedColorConfig = Config.Bind("Colors.PaintColors", "Red", "1.5,0.2,0.2",
+                new ConfigDescription("RGB color values for Red (format: R,G,B with values 0.0-3.0)"));
+                
+            BlueColorConfig = Config.Bind("Colors.PaintColors", "Blue", "0.2,0.3,1.5",
+                new ConfigDescription("RGB color values for Blue (format: R,G,B with values 0.0-3.0)"));
+                
+            GreenColorConfig = Config.Bind("Colors.PaintColors", "Green", "0.3,1.5,0.3",
+                new ConfigDescription("RGB color values for Green (format: R,G,B with values 0.0-3.0)"));
+                
+            YellowColorConfig = Config.Bind("Colors.PaintColors", "Yellow", "1.8,1.6,0.2",
+                new ConfigDescription("RGB color values for Yellow (format: R,G,B with values 0.0-3.0)"));
+            
+            Jotunn.Logger.LogInfo("⚙️ Configuration loaded successfully!");
+        }
+        
+        private void InitializeColorsFromConfig()
+        {
+            try
+            {
+                // Parse colors from config and update the VikingColors dictionary
+                VikingColors["Dark Brown"] = ParseColorFromConfig(DarkBrownColorConfig.Value, new Color(0.6f, 0.3f, 0.1f));
+                VikingColors["Medium Brown"] = ParseColorFromConfig(MediumBrownColorConfig.Value, Color.white);
+                VikingColors["Natural Wood"] = ParseColorFromConfig(NaturalWoodColorConfig.Value, new Color(1.0f, 1.0f, 1.0f));
+                VikingColors["Light Brown"] = ParseColorFromConfig(LightBrownColorConfig.Value, new Color(1.3f, 1.1f, 0.9f));
+                VikingColors["Pale Wood"] = ParseColorFromConfig(PaleWoodColorConfig.Value, new Color(1.5f, 1.3f, 1.1f));
+                
+                VikingColors["Black"] = ParseColorFromConfig(BlackColorConfig.Value, new Color(0.1f, 0.1f, 0.1f));
+                VikingColors["White"] = ParseColorFromConfig(WhiteColorConfig.Value, new Color(2.5f, 2.5f, 2.5f));
+                VikingColors["Red"] = ParseColorFromConfig(RedColorConfig.Value, new Color(1.5f, 0.2f, 0.2f));
+                VikingColors["Blue"] = ParseColorFromConfig(BlueColorConfig.Value, new Color(0.2f, 0.3f, 1.5f));
+                VikingColors["Green"] = ParseColorFromConfig(GreenColorConfig.Value, new Color(0.3f, 1.5f, 0.3f));
+                VikingColors["Yellow"] = ParseColorFromConfig(YellowColorConfig.Value, new Color(1.8f, 1.6f, 0.2f));
+                
+                Jotunn.Logger.LogInfo("🎨 Colors loaded from configuration!");
+            }
+            catch (Exception ex)
+            {
+                Jotunn.Logger.LogError($"❌ Error loading colors from configuration: {ex.Message}");
+            }
+        }
+        
+        private Color ParseColorFromConfig(string colorString, Color defaultColor)
+        {
+            try
+            {
+                string[] parts = colorString.Split(',');
+                if (parts.Length == 3 && 
+                    float.TryParse(parts[0], out float r) && 
+                    float.TryParse(parts[1], out float g) && 
+                    float.TryParse(parts[2], out float b))
+                {
+                    // Clamp values to reasonable HDR range (0.0 to 3.0)
+                    r = Mathf.Clamp(r, 0f, 3f);
+                    g = Mathf.Clamp(g, 0f, 3f);
+                    b = Mathf.Clamp(b, 0f, 3f);
+                    return new Color(r, g, b);
+                }
+            }
+            catch (Exception ex)
+            {
+                Jotunn.Logger.LogWarning($"⚠️ Invalid color format '{colorString}', using default: {ex.Message}");
+            }
+            
+            return defaultColor;
+        }
+        
+        private void ApplyRecipeFromConfig(ItemConfig itemConfig)
+        {
+            try
+            {
+                string recipeString = RecipeConfig.Value;
+                Jotunn.Logger.LogInfo($"📋 Parsing recipe: {recipeString}");
+                
+                if (string.IsNullOrWhiteSpace(recipeString))
+                {
+                    Jotunn.Logger.LogWarning("⚠️ Recipe config is empty, using default recipe");
+                    ApplyDefaultRecipe(itemConfig);
+                    return;
+                }
+                
+                string[] materials = recipeString.Split(',');
+                int validMaterials = 0;
+                
+                foreach (string material in materials)
+                {
+                    string trimmedMaterial = material.Trim();
+                    if (string.IsNullOrWhiteSpace(trimmedMaterial))
+                        continue;
+                        
+                    string[] parts = trimmedMaterial.Split(':');
+                    if (parts.Length != 2)
+                    {
+                        Jotunn.Logger.LogWarning($"⚠️ Invalid recipe format: '{trimmedMaterial}' (expected Material:Amount)");
+                        continue;
+                    }
+                    
+                    string materialName = parts[0].Trim();
+                    if (!int.TryParse(parts[1].Trim(), out int amount) || amount <= 0)
+                    {
+                        Jotunn.Logger.LogWarning($"⚠️ Invalid amount for material '{materialName}': '{parts[1]}'");
+                        continue;
+                    }
+                    
+                    // Basic validation - check if material name looks reasonable
+                    if (ValidateMaterialName(materialName))
+                    {
+                        itemConfig.AddRequirement(new RequirementConfig(materialName, amount));
+                        validMaterials++;
+                        Jotunn.Logger.LogInfo($"✅ Added recipe requirement: {materialName} x{amount}");
+                    }
+                    else
+                    {
+                        Jotunn.Logger.LogWarning($"⚠️ Potentially invalid material name: '{materialName}' (added anyway - check spelling!)");
+                        itemConfig.AddRequirement(new RequirementConfig(materialName, amount));
+                        validMaterials++;
+                    }
+                }
+                
+                if (validMaterials == 0)
+                {
+                    Jotunn.Logger.LogWarning("⚠️ No valid materials found in recipe config, using default recipe");
+                    ApplyDefaultRecipe(itemConfig);
+                }
+                else
+                {
+                    Jotunn.Logger.LogInfo($"🎨 Successfully applied recipe with {validMaterials} materials");
+                }
+            }
+            catch (Exception ex)
+            {
+                Jotunn.Logger.LogError($"❌ Error parsing recipe config: {ex.Message}");
+                Jotunn.Logger.LogWarning("🔧 Falling back to default recipe");
+                ApplyDefaultRecipe(itemConfig);
+            }
+        }
+        
+        private bool ValidateMaterialName(string materialName)
+        {
+            // Basic validation for common Valheim item naming patterns
+            if (string.IsNullOrWhiteSpace(materialName))
+                return false;
+                
+            // Check for reasonable material name patterns
+            // This is not exhaustive but catches obvious typos
+            string[] commonMaterials = {
+                "Wood", "Stone", "Flint", "Coal", "Resin",
+                "LeatherScraps", "DeerHide", "BoarHide", "WolfHide", "LoxPelt",
+                "FineWood", "CoreWood", "ElderBark", "YggdrasilWood",
+                "Copper", "Tin", "Bronze", "Iron", "Silver", "BlackMetal",
+                "CopperOre", "TinOre", "IronOre", "SilverOre", "BlackMetalOre",
+                "Chitin", "Carapace", "Scale_Hide",
+                "Crystal", "Obsidian", "Amber", "AmberPearl",
+                "GreydwarfEye", "SurtlingCore", "AncientSeed", "WitheredBone",
+                "TrophyDeer", "TrophyBoar", "TrophyNeck", "TrophyGreydwarf",
+                "Feathers", "Guck", "Bloodbag", "Ooze",
+                "Chain", "Nails", "IronNails",
+                "LinenThread", "JuteRed", "JuteBlue"
+            };
+            
+            // Check if it's a known material (case-insensitive)
+            foreach (string knownMaterial in commonMaterials)
+            {
+                if (string.Equals(materialName, knownMaterial, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            
+            // If not in our list, it might still be valid (modded items, etc.)
+            // Just check that it follows reasonable naming conventions
+            return materialName.Length >= 2 && materialName.Length <= 50 && 
+                   !materialName.Contains(":") && !materialName.Contains(",");
+        }
+        
+        private void ApplyDefaultRecipe(ItemConfig itemConfig)
+        {
+            // Default recipe as fallback
+            itemConfig.AddRequirement(new RequirementConfig("Wood", 10));
+            itemConfig.AddRequirement(new RequirementConfig("LeatherScraps", 5));
+            itemConfig.AddRequirement(new RequirementConfig("Coal", 1));
+            Jotunn.Logger.LogInfo("🔧 Applied default recipe: Wood x10, LeatherScraps x5, Coal x1");
         }
         
         private void AddCustomItems()
@@ -135,8 +385,8 @@ namespace TorvaldsPainters
             // Add a default "Paint Mode" piece to prevent "Nothing to build" message
             var paintModeConfig = new PieceConfig
             {
-                Name = "Torvald's Painting Mallet",
-                Description = "Left-click to smack on the paint, right-click to select paint color",
+                Name = "$item_painting_mallet",
+                Description = "$item_painting_mallet_desc",
                 PieceTable = "_PaintTable",
                 Category = "Misc"
             };
@@ -152,15 +402,21 @@ namespace TorvaldsPainters
         
         private void CreatePaintingMallet()
         {
-            // Create ItemConfig with recipe
+            // Create ItemConfig with dynamic recipe
             var itemConfig = new ItemConfig
             {
                 Name = "$item_painting_mallet",
                 Description = "$item_painting_mallet_desc"
             };
-            itemConfig.AddRequirement(new RequirementConfig("Wood", 10));
-            itemConfig.AddRequirement(new RequirementConfig("LeatherScraps", 5));
-            itemConfig.AddRequirement(new RequirementConfig("Coal", 1));
+            
+            // Add recipe requirements from configuration - supports any materials
+            ApplyRecipeFromConfig(itemConfig);
+            
+            // Set crafting station requirement based on configuration
+            if (RequireWorkbenchConfig.Value)
+            {
+                itemConfig.CraftingStation = "piece_workbench";
+            }
             
             // Create CustomItem using Jötunn approach - clone hammer for visuals
             var mallet = new CustomItem("TorvaldsMallet", "Hammer", itemConfig);
@@ -207,11 +463,15 @@ namespace TorvaldsPainters
             Localization.AddTranslation("English", new Dictionary<string, string>
             {
                 {"item_painting_mallet", "Torvald's Painting Mallet"},
-                {"item_painting_mallet_desc", "A fine mallet for painting building pieces! Left-click to paint, right-click to select color."},
+                {"item_painting_mallet_desc", "A fine mallet from Torvald's Affordable Painters! Left-click to paint building pieces, right-click to select colors."},
                 {"paint_apply_hint", "Apply Paint"},
                 {"paint_select_color_hint", "Select Color"},
                 {"paint_applied", "🎨 Painted with"},
-                {"paint_cannot_paint", "❌ Cannot paint this object"}
+                {"paint_cannot_paint", "❌ Cannot paint this object"},
+                {"paint_color_picker_title", "Select Paint Color"},
+                {"paint_wood_stains_section", "Wood Stains"},
+                {"paint_colors_section", "Paint Colors"},
+                {"paint_close_button", "Close"}
             });
         }
         
@@ -352,7 +612,7 @@ namespace TorvaldsPainters
             
             // Big clear title
             var titleText = GUIManager.Instance.CreateText(
-                text: "Select Paint Color",
+                text: Localization.TryTranslate("$paint_color_picker_title"),
                 parent: colorPickerPanel.transform,
                 anchorMin: new Vector2(0.5f, 1f),
                 anchorMax: new Vector2(0.5f, 1f),
@@ -367,14 +627,14 @@ namespace TorvaldsPainters
                 addContentSizeFitter: false);
             
             // Wood Stains section (left)
-            CreateSimpleSection("Wood Stains", new string[] {"Dark Brown", "Medium Brown", "Natural Wood", "Light Brown", "Pale Wood"}, -120f);
+            CreateSimpleSection(Localization.TryTranslate("$paint_wood_stains_section"), new string[] {"Dark Brown", "Medium Brown", "Natural Wood", "Light Brown", "Pale Wood"}, -120f);
             
             // Paint Colors section (right) 
-            CreateSimpleSection("Paint Colors", new string[] {"Black", "White", "Red", "Blue", "Green", "Yellow"}, 120f);
+            CreateSimpleSection(Localization.TryTranslate("$paint_colors_section"), new string[] {"Black", "White", "Red", "Blue", "Green", "Yellow"}, 120f);
             
             // Close button
             var closeButton = GUIManager.Instance.CreateButton(
-                text: "Close",
+                text: Localization.TryTranslate("$paint_close_button"),
                 parent: colorPickerPanel.transform,
                 anchorMin: new Vector2(0.5f, 0f),
                 anchorMax: new Vector2(0.5f, 0f),
@@ -448,7 +708,7 @@ namespace TorvaldsPainters
         {
             if (colorPickerPanel != null)
             {
-                Object.Destroy(colorPickerPanel);
+                UnityEngine.Object.Destroy(colorPickerPanel);
                 colorPickerPanel = null;
             }
             
