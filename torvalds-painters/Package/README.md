@@ -5,7 +5,7 @@ A Valheim mod that lets you paint building pieces with a variety of colors. Torv
 
 ## Features
 
-- Paint building pieces with 11 different colors (5 wood tones, 6 paint colors)
+- Paint building pieces with 13 different colors (5 wood tones, 8 paint colors)
 - Left-click to paint, right-click to open color selector
 - Colors persist across game sessions and work in multiplayer
 - Configurable recipe system - server admins can change what materials are required
@@ -50,23 +50,25 @@ Materials = YggdrasilWood:5,Crystal:3,SurtlingCore:2
 
 ### Color Customization
 
-All 11 colors are individually configurable using RGB values (0.0 to 3.0):
+All 13 colors are individually configurable using RGB values (0.0 to 3.0):
 
 ```ini
 [Colors.WoodTones]
-DarkBrown = 0.6,0.3,0.1
-MediumBrown = 1.0,1.0,1.0
+DarkBrown = 0.65,0.35,0.20
+MediumBrown = 0.80,0.60,0.45
 NaturalWood = 1.0,1.0,1.0
-LightBrown = 1.3,1.1,0.9
-PaleWood = 1.5,1.3,1.1
+LightBrown = 1.15,1.05,0.90
+PaleWood = 1.30,1.15,1.00
 
 [Colors.PaintColors]
 Black = 0.1,0.1,0.1
-White = 2.5,2.5,2.5
+White = 2.0,2.0,2.0
 Red = 1.5,0.2,0.2
-Blue = 0.2,0.3,1.5
-Green = 0.3,1.5,0.3
-Yellow = 1.8,1.6,0.2
+Blue = 0.25,0.35,1.40
+Green = 0.30,1.30,0.30
+Yellow = 1.60,1.40,0.25
+Orange = 1.5,0.9,0.25
+Purple = 1.2,0.5,1.4
 ```
 
 ### Advanced Filtering Options
@@ -116,6 +118,13 @@ Install with a mod manager or manually place the files in your BepInEx/plugins f
 - Painted pieces briefly revert to normal color when highlighted, but return to painted color afterwards
 
 ## Changelog
+
+**v1.1.0**
+- Added Orange and Purple paint colors (13 total colors now)
+- Enhanced color palette with improved wood tone progression
+- Balanced paint color brightness to reduce blowout on some materials
+- Stone and marble materials now automatically dim slightly for more realistic appearance
+- Improved color picker GUI with two-column layout for better organization
 
 **v1.0.1**
 - Fixed major painting bug where you could accidentally paint objects behind non-paintable pieces

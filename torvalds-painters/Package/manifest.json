@@ -1,7 +1,7 @@
 ﻿{
-  "name": "TorvaldsAffordablePainters",
-  "description": "A customizable painting system for Valheim building pieces. Paint your builds with 11 beautiful colors using a specialized mallet tool. Features configurable recipes perfect for server progression balancing and custom color support.",
-  "version_number": "1.0.0",
+  "name": "Torvald's Affordable Painters",
+  "description": "A customizable painting tool for building pieces. Paint your builds with 13 colors using Torvald's painting mallet. Features configurable recipe for server progression and custom color support.",
+  "version_number": "1.1.0",
   "website_url": "https://github.com/carloseberhardt/torvalds-painters",
   "dependencies": [
     "denikson-BepInExPack_Valheim-5.4.2202",

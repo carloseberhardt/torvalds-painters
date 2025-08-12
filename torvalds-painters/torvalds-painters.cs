@@ -4,7 +4,6 @@ using Jotunn.Entities;
 using Jotunn.Managers;
 using Jotunn.Utils;
 using Jotunn.Configs;
-using Jotunn.GUI;
 using HarmonyLib;
 using UnityEngine;
 using UnityEngine.UI;
@@ -117,7 +116,7 @@ namespace TorvaldsPainters
     {
         public const string PluginGUID = "com.torvald.painters";
         public const string PluginName = "Torvald's Affordable Painters";
-        public const string PluginVersion = "1.0.0";
+        public const string PluginVersion = "1.1.0";
 
         // Configuration entries
         #region Configuration
@@ -140,6 +139,8 @@ namespace TorvaldsPainters
         private static ConfigEntry<string> BlueColorConfig;
         private static ConfigEntry<string> GreenColorConfig;
         private static ConfigEntry<string> YellowColorConfig;
+        private static ConfigEntry<string> OrangeColorConfig;
+        private static ConfigEntry<string> PurpleColorConfig;
 
         // Debug configuration
         private static ConfigEntry<LogLevel> LogLevelConfig;
@@ -252,39 +253,45 @@ namespace TorvaldsPainters
                 new ConfigDescription("Whether the painting mallet requires a workbench to craft"));
 
             // Wood tone colors configuration
-            DarkBrownColorConfig = Config.Bind("Colors.WoodTones", "DarkBrown", "0.6,0.3,0.1",
+            DarkBrownColorConfig = Config.Bind("Colors.WoodTones", "DarkBrown", "0.65,0.35,0.20",
                 new ConfigDescription("RGB color values for Dark Brown (format: R,G,B with values 0.0-3.0)"));
 
-            MediumBrownColorConfig = Config.Bind("Colors.WoodTones", "MediumBrown", "1.0,1.0,1.0",
+            MediumBrownColorConfig = Config.Bind("Colors.WoodTones", "MediumBrown", "0.80,0.60,0.45",
                 new ConfigDescription("RGB color values for Medium Brown (format: R,G,B with values 0.0-3.0)"));
 
             NaturalWoodColorConfig = Config.Bind("Colors.WoodTones", "NaturalWood", "1.0,1.0,1.0",
                 new ConfigDescription("RGB color values for Natural Wood (format: R,G,B with values 0.0-3.0)"));
 
-            LightBrownColorConfig = Config.Bind("Colors.WoodTones", "LightBrown", "1.3,1.1,0.9",
+            LightBrownColorConfig = Config.Bind("Colors.WoodTones", "LightBrown", "1.15,1.05,0.90",
                 new ConfigDescription("RGB color values for Light Brown (format: R,G,B with values 0.0-3.0)"));
 
-            PaleWoodColorConfig = Config.Bind("Colors.WoodTones", "PaleWood", "1.5,1.3,1.1",
+            PaleWoodColorConfig = Config.Bind("Colors.WoodTones", "PaleWood", "1.30,1.15,1.00",
                 new ConfigDescription("RGB color values for Pale Wood (format: R,G,B with values 0.0-3.0)"));
 
             // Paint colors configuration
             BlackColorConfig = Config.Bind("Colors.PaintColors", "Black", "0.1,0.1,0.1",
                 new ConfigDescription("RGB color values for Black (format: R,G,B with values 0.0-3.0)"));
 
-            WhiteColorConfig = Config.Bind("Colors.PaintColors", "White", "2.5,2.5,2.5",
+            WhiteColorConfig = Config.Bind("Colors.PaintColors", "White", "2.0,2.0,2.0",
                 new ConfigDescription("RGB color values for White (format: R,G,B with values 0.0-3.0)"));
 
             RedColorConfig = Config.Bind("Colors.PaintColors", "Red", "1.5,0.2,0.2",
                 new ConfigDescription("RGB color values for Red (format: R,G,B with values 0.0-3.0)"));
 
-            BlueColorConfig = Config.Bind("Colors.PaintColors", "Blue", "0.2,0.3,1.5",
+            BlueColorConfig = Config.Bind("Colors.PaintColors", "Blue", "0.25,0.35,1.40",
                 new ConfigDescription("RGB color values for Blue (format: R,G,B with values 0.0-3.0)"));
 
-            GreenColorConfig = Config.Bind("Colors.PaintColors", "Green", "0.3,1.5,0.3",
+            GreenColorConfig = Config.Bind("Colors.PaintColors", "Green", "0.30,1.30,0.30",
                 new ConfigDescription("RGB color values for Green (format: R,G,B with values 0.0-3.0)"));
 
-            YellowColorConfig = Config.Bind("Colors.PaintColors", "Yellow", "1.8,1.6,0.2",
+            YellowColorConfig = Config.Bind("Colors.PaintColors", "Yellow", "1.60,1.40,0.25",
                 new ConfigDescription("RGB color values for Yellow (format: R,G,B with values 0.0-3.0)"));
+
+            OrangeColorConfig = Config.Bind("Colors.PaintColors", "Orange", "1.5,0.9,0.25",
+                new ConfigDescription("RGB color values for Orange (format: R,G,B with values 0.0-3.0)"));
+
+            PurpleColorConfig = Config.Bind("Colors.PaintColors", "Purple", "1.2,0.5,1.4",
+                new ConfigDescription("RGB color values for Purple (format: R,G,B with values 0.0-3.0)"));
 
             // Debug configuration section
             LogLevelConfig = Config.Bind("Debug", "LogLevel", LogLevel.Basic,
@@ -353,6 +360,8 @@ namespace TorvaldsPainters
                 VikingColors["Blue"] = ParseColorFromConfig(BlueColorConfig.Value, new Color(0.2f, 0.3f, 1.5f));
                 VikingColors["Green"] = ParseColorFromConfig(GreenColorConfig.Value, new Color(0.3f, 1.5f, 0.3f));
                 VikingColors["Yellow"] = ParseColorFromConfig(YellowColorConfig.Value, new Color(1.8f, 1.6f, 0.2f));
+                VikingColors["Orange"] = ParseColorFromConfig(OrangeColorConfig.Value, new Color(1.5f, 0.9f, 0.25f));
+                VikingColors["Purple"] = ParseColorFromConfig(PurpleColorConfig.Value, new Color(1.2f, 0.5f, 1.4f));
 
                 Jotunn.Logger.LogInfo("🎨 Colors loaded from configuration!");
             }
@@ -1139,6 +1148,14 @@ namespace TorvaldsPainters
             if (!VikingColors.TryGetValue(colorName, out Color color))
                 return;
 
+            // Apply subtle dimming for stone/marble materials to prevent plasticky appearance
+            var wnt = piece.GetComponent<WearNTear>();
+            if (wnt && (wnt.m_materialType == WearNTear.MaterialType.Stone || 
+                       wnt.m_materialType.ToString().Contains("Marble")))
+            {
+                color *= 0.9f; // 10% dimming for masonry materials
+            }
+
             // Use MaterialMan for proper color application that survives highlighting
             if (MaterialMan.instance != null)
             {
@@ -1250,13 +1267,13 @@ namespace TorvaldsPainters
                 return;
             }
 
-            // Simple fixed-size panel that works
+            // Wider panel to accommodate two-column paint color layout
             colorPickerPanel = GUIManager.Instance.CreateWoodpanel(
                 parent: GUIManager.CustomGUIFront.transform,
                 anchorMin: new Vector2(0.5f, 0.5f),
                 anchorMax: new Vector2(0.5f, 0.5f),
                 position: Vector2.zero,
-                width: 500f,
+                width: 650f,
                 height: 400f,
                 draggable: false);
 
@@ -1272,15 +1289,15 @@ namespace TorvaldsPainters
                 color: GUIManager.Instance.ValheimOrange,
                 outline: true,
                 outlineColor: Color.black,
-                width: 400f,
+                width: 550f,
                 height: 40f,
                 addContentSizeFitter: false);
 
             // Wood Stains section (left)
-            CreateSimpleSection(Localization.TryTranslate("$paint_wood_stains_section"), new string[] { "Dark Brown", "Medium Brown", "Natural Wood", "Light Brown", "Pale Wood" }, -120f);
+            CreateSimpleSection(Localization.TryTranslate("$paint_wood_stains_section"), new string[] { "Dark Brown", "Medium Brown", "Natural Wood", "Light Brown", "Pale Wood" }, -180f);
 
-            // Paint Colors section (right) 
-            CreateSimpleSection(Localization.TryTranslate("$paint_colors_section"), new string[] { "Black", "White", "Red", "Blue", "Green", "Yellow" }, 120f);
+            // Paint Colors section (right) - two columns
+            CreatePaintColorSection(Localization.TryTranslate("$paint_colors_section"), new string[] { "Black", "White", "Red", "Blue", "Green", "Yellow", "Orange", "Purple" }, 80f);
 
             // Close button
             var closeButton = GUIManager.Instance.CreateButton(
@@ -1330,6 +1347,49 @@ namespace TorvaldsPainters
                     position: new Vector2(xOffset, 80f - (i * 35f)),
                     width: 160f, // Reasonable width for text
                     height: 30f);  // Reasonable height
+
+                // Add click handler
+                string colorName = colorNames[i]; // Capture for closure
+                colorButton.GetComponent<Button>().onClick.AddListener(() => SelectColor(colorName));
+            }
+        }
+
+        private void CreatePaintColorSection(string sectionTitle, string[] colorNames, float xOffset)
+        {
+            // Section header - centered above the two columns
+            var headerText = GUIManager.Instance.CreateText(
+                text: sectionTitle,
+                parent: colorPickerPanel.transform,
+                anchorMin: new Vector2(0.5f, 0.5f),
+                anchorMax: new Vector2(0.5f, 0.5f),
+                position: new Vector2(xOffset + 80f, 120f), // Centered between the two columns
+                font: GUIManager.Instance.AveriaSerifBold,
+                fontSize: 18,
+                color: GUIManager.Instance.ValheimOrange,
+                outline: true,
+                outlineColor: Color.black,
+                width: 200f,
+                height: 25f,
+                addContentSizeFitter: false);
+
+            // Create buttons in two columns (4 colors each)
+            int colorsPerColumn = 4;
+            for (int i = 0; i < colorNames.Length; i++)
+            {
+                int column = i / colorsPerColumn;  // 0 for left column, 1 for right column
+                int row = i % colorsPerColumn;     // 0-3 for position within column
+
+                float columnXOffset = (xOffset - 40f) + (column * 160f); // Shift left 40px and 160px between columns
+                float yPos = 80f - (row * 35f); // 35px between rows
+
+                var colorButton = GUIManager.Instance.CreateButton(
+                    text: colorNames[i],
+                    parent: colorPickerPanel.transform,
+                    anchorMin: new Vector2(0.5f, 0.5f),
+                    anchorMax: new Vector2(0.5f, 0.5f),
+                    position: new Vector2(columnXOffset, yPos),
+                    width: 150f, // Slightly smaller to fit two columns
+                    height: 30f);
 
                 // Add click handler
                 string colorName = colorNames[i]; // Capture for closure
