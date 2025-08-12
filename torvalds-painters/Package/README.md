@@ -95,10 +95,6 @@ BlacklistPrefabs =
 [Debug]
 # Logging level (None=0, Basic=1, Detailed=2, Debug=3)
 LogLevel = Basic
-# Maximum painting distance in meters
-MaxPaintDistance = 8.0
-# Require build permission to paint objects
-RequireBuildPermission = true
 ```
 
 **Note:** You need to restart the game for config changes to take effect.
@@ -110,12 +106,6 @@ Torvald's business model is flexible - want to make his services more exclusive?
 ## Installation
 
 Install with a mod manager or manually place the files in your BepInEx/plugins folder. Requires BepInEx and Jotunn.
-
-## Known Issues
-
-- Config changes require restarting the game
-- Very dark building pieces might not show color changes clearly
-- Painted pieces briefly revert to normal color when highlighted, but return to painted color afterwards
 
 ## Changelog
 

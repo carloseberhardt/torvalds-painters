@@ -1,9 +1,8 @@
 #!/bin/bash
 
-DLL=JotunnModStub/bin/Release/net48/JotunnModStub.dll
-PLUGINS=JotunnModStub/Package/plugins
-README=README.md
-#TRANSLATIONS=Translations
+DLL=torvalds-painters/bin/Release/net48/torvalds-painters.dll
+PLUGINS=torvalds-painters/Package/plugins
+PACKAGE_DIR=torvalds-painters/Package
 
 VERSION=$1
 
@@ -13,31 +12,28 @@ if [ ! -f "$DLL" ]; then
     exit 1
 fi
 
-
 # Check that target directory exists and is writable
 if [ ! -d "$PLUGINS" ]; then
     echo "Error: $PLUGINS directory does not exist."
     exit 1
 fi
 
-if [ ! -w "$PLUGINS" ]; then
-    echo "Error: $PLUGINS directory is not writable."
-    exit 1
-fi
-
-if [ ! -f "$README" ]; then
-    echo "Error: $README does not exist or is not readable."
-    exit 1
-fi
-
+# Copy DLL to plugins folder
 cp -f "$DLL" "$PLUGINS" || { echo "Error: Failed to copy $DLL"; exit 1; }
-cp -f "$README" "$PLUGINS/../README.md" || { echo "Error: Failed to copy $README"; exit 1; }
-#cp -rf "$TRANSLATIONS" "$PLUGINS/"  || { echo "Error: Failed to copy Translations"; exit 1; }
 
-ZIPDESTINATION="../bin/Release/JotunnModStub.$VERSION.zip"
-
-cd "$PLUGINS/.."
+# Create zip filename
 if [ ! -z "$VERSION" ]; then
-    VERSION=".$VERSION"
+    ZIPNAME="torvalds-painters.$VERSION.zip"
+else
+    ZIPNAME="torvalds-painters.zip"
 fi
-zip -r "$ZIPDESTINATION" .
+
+ZIPDESTINATION="torvalds-painters/bin/Release/$ZIPNAME"
+
+# Create output directory if it doesn't exist
+mkdir -p "torvalds-painters/bin/Release"
+
+# Use PowerShell to create the zip since we're on Windows
+powershell -Command "Compress-Archive -Path '$PACKAGE_DIR/*' -DestinationPath '$ZIPDESTINATION' -Force"
+
+echo "Successfully created $ZIPDESTINATION"
