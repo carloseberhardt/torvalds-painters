@@ -116,7 +116,7 @@ namespace TorvaldsPainters
     {
         public const string PluginGUID = "com.torvald.painters";
         public const string PluginName = "Torvald's Affordable Painters";
-        public const string PluginVersion = "1.1.0";
+        public const string PluginVersion = "1.2.0";
 
         // Configuration entries
         #region Configuration
