@@ -74,39 +74,39 @@ namespace TorvaldsPainters
     [Flags]
     public enum BuildCategory
     {
-        None      = 0,
-        Building  = 1 << 0,   // walls/floors/roofs/doors/rails
+        None = 0,
+        Building = 1 << 0,   // walls/floors/roofs/doors/rails
         Furniture = 1 << 1,   // décor, item/armor stands, signs, rugs, banners
-        Crafting  = 1 << 2,   // stations + extensions
-        Misc      = 1 << 3,   // portals/wards/carts/boats/markers
-        All       = Building | Furniture | Crafting | Misc
+        Crafting = 1 << 2,   // stations + extensions
+        Misc = 1 << 3,   // portals/wards/carts/boats/markers
+        All = Building | Furniture | Crafting | Misc
     }
 
     [Flags]
     public enum FunctionalBucket
     {
-        None        = 0,
-        Stations    = 1 << 0, // CraftingStation + StationExtension
-        Production  = 1 << 1, // Smelter/Fermenter/CookingStation/Windmill/SpinningWheel/etc.
-        Storage     = 1 << 2, // Container
-        Beds        = 1 << 3, // Bed
+        None = 0,
+        Stations = 1 << 0, // CraftingStation + StationExtension
+        Production = 1 << 1, // Smelter/Fermenter/CookingStation/Windmill/SpinningWheel/etc.
+        Storage = 1 << 2, // Container
+        Beds = 1 << 3, // Bed
         PortalsWard = 1 << 4, // TeleportWorld, ward
-        Lighting    = 1 << 5, // Fireplace/Light
+        Lighting = 1 << 5, // Fireplace/Light
         SignsStands = 1 << 6, // Sign, ItemStand, ArmorStand
-        Transport   = 1 << 7, // Cart, Ship
-        Defenses    = 1 << 8, // Ballista/spikes/stakewalls (may require name fallback)
-        All         = ~0
+        Transport = 1 << 7, // Cart, Ship
+        Defenses = 1 << 8, // Ballista/spikes/stakewalls (may require name fallback)
+        All = ~0
     }
 
     [Flags]
     public enum MaterialBucket
     {
-        Unknown     = 0,
-        Wood        = 1 << 0,
-        Stone       = 1 << 1,
-        Metal       = 1 << 2, // iron/steel/etc.
-        Marble      = 1 << 3, // black marble (Mistlands)
-        All         = ~0
+        Unknown = 0,
+        Wood = 1 << 0,
+        Stone = 1 << 1,
+        Metal = 1 << 2, // iron/steel/etc.
+        Marble = 1 << 3, // black marble (Mistlands)
+        All = ~0
     }
 
     [BepInPlugin(PluginGUID, PluginName, PluginVersion)]
@@ -189,7 +189,11 @@ namespace TorvaldsPainters
 
         // Cached instance for performance
         public static TorvaldsPainters Instance { get; private set; }
-        
+
+        // Throttle cache for highlight-driven re-applies (keyed by instance id)
+        internal static readonly Dictionary<int, (string color, float t)> _lastApply = new Dictionary<int, (string color, float t)>();
+        internal const float HighlightReapplyMinInterval = 0.25f; // seconds
+
         // Proper layer mask for building pieces in Valheim
         private static readonly int PaintPieceMask = LayerMask.GetMask(
             "piece",          // Standard placed build pieces
@@ -198,13 +202,13 @@ namespace TorvaldsPainters
             "Default_small",  // Smaller default layer objects
             "static_solid"    // Static solid objects that might be paintable
         );
-        
+
         // Reusable buffer to avoid GC allocations
         private static readonly RaycastHit[] _hitsBuf = new RaycastHit[16];
 
         // Cached name sets for performance
         private static HashSet<string> _whitelist, _blacklist;
-        
+
         // Cached category IDs resolved via Jötunn API for robustness across game versions
         private static HashSet<int> _buildingCats;
         private static int _craftingCat, _furnitureCat, _miscCat;
@@ -315,7 +319,7 @@ namespace TorvaldsPainters
 
             ExcludedFunctionalConfig = Config.Bind("Filtering", "ExcludedFunctional",
                 FunctionalBucket.Stations | FunctionalBucket.Production |
-                FunctionalBucket.Storage  | FunctionalBucket.Beds      |
+                FunctionalBucket.Storage | FunctionalBucket.Beds |
                 FunctionalBucket.PortalsWard | FunctionalBucket.Transport,
                 new ConfigDescription("Functional groups to exclude even if their category is allowed.\n" +
                 "Valid flags: Stations, Production, Storage, Beds, PortalsWard, Lighting, SignsStands, Transport, Defenses, All, None"));
@@ -336,7 +340,7 @@ namespace TorvaldsPainters
                 "Example: piece_workbench,piece_forge"));
 
             Jotunn.Logger.LogInfo("⚙️ Configuration loaded successfully!");
-            
+
             // Build name sets and setup change handlers
             RebuildNameSets();
             WhitelistPrefabsConfig.SettingChanged += (_, __) => RebuildNameSets();
@@ -396,43 +400,13 @@ namespace TorvaldsPainters
             return defaultColor;
         }
 
-        // Logging helper methods with level checks
-        private static void LogDebug(string message, LogLevel level = LogLevel.Debug)
-        {
-            if (LogLevelConfig.Value >= level)
-            {
-                Jotunn.Logger.LogInfo($"[{level}] {message}");
-            }
-        }
-
-        private static void LogDetailed(string message)
-        {
-            LogDebug(message, LogLevel.Detailed);
-        }
-
-        private static void LogBasic(string message)
-        {
-            LogDebug(message, LogLevel.Basic);
-        }
-
-        private static void LogError(string message)
-        {
-            // Always log errors regardless of level
-            Jotunn.Logger.LogError($"❌ {message}");
-        }
-
-        private static void LogWarning(string message)
-        {
-            // Always log warnings regardless of level
-            Jotunn.Logger.LogWarning($"⚠️ {message}");
-        }
 
         // Name set management for whitelist/blacklist
         private static void RebuildNameSets()
         {
             _whitelist = BuildNameSet(WhitelistPrefabsConfig.Value);
             _blacklist = BuildNameSet(BlacklistPrefabsConfig.Value);
-            LogBasic($"Rebuilt name sets: {_whitelist.Count} whitelist, {_blacklist.Count} blacklist");
+            Jotunn.Logger.LogDebug($"Rebuilt name sets: {_whitelist.Count} whitelist, {_blacklist.Count} blacklist");
         }
 
         // Initialize category IDs - runtime discovery approach since enum values vary across versions
@@ -445,7 +419,7 @@ namespace TorvaldsPainters
             {
                 // Discover all available piece categories at runtime
                 var allCategories = System.Enum.GetValues(typeof(Piece.PieceCategory)).Cast<Piece.PieceCategory>().ToList();
-                LogDebug($"Available piece categories: {string.Join(", ", allCategories)}", LogLevel.Debug);
+                Jotunn.Logger.LogDebug($"Available piece categories: {string.Join(", ", allCategories)}");
 
                 // Map standard categories by name
                 _miscCat = GetCategoryByName(allCategories, "Misc");
@@ -457,7 +431,7 @@ namespace TorvaldsPainters
                 foreach (var category in allCategories)
                 {
                     var name = category.ToString();
-                    if (name.IndexOf("Building", StringComparison.OrdinalIgnoreCase) >= 0 || 
+                    if (name.IndexOf("Building", StringComparison.OrdinalIgnoreCase) >= 0 ||
                         name.Equals("Building", StringComparison.OrdinalIgnoreCase))
                     {
                         _buildingCats.Add((int)category);
@@ -470,12 +444,12 @@ namespace TorvaldsPainters
                     _buildingCats.Add(0);
                 }
 
-                LogBasic($"Category mapping: Misc={_miscCat}, Crafting={_craftingCat}, Furniture={_furnitureCat}, Building=[{string.Join(",", _buildingCats)}]");
+                Jotunn.Logger.LogDebug($"Category mapping: Misc={_miscCat}, Crafting={_craftingCat}, Furniture={_furnitureCat}, Building=[{string.Join(",", _buildingCats)}]");
                 _categoriesInitialized = true;
             }
             catch (Exception ex)
             {
-                LogError($"Failed to initialize category mapping: {ex.Message}");
+                Jotunn.Logger.LogError($"Failed to initialize category mapping: {ex.Message}");
                 // Set minimal safe defaults if initialization fails
                 _miscCat = 0;
                 _craftingCat = 1;
@@ -526,12 +500,12 @@ namespace TorvaldsPainters
             var nview = piece.GetComponent<ZNetView>();
             if (nview != null && nview.IsValid())
             {
-                try 
-                { 
-                    return nview.GetPrefabName(); 
-                } 
-                catch 
-                { 
+                try
+                {
+                    return nview.GetPrefabName();
+                }
+                catch
+                {
                     // Fall through to backup method
                 }
             }
@@ -544,13 +518,13 @@ namespace TorvaldsPainters
             // Ensure categories are initialized
             if (!_categoriesInitialized)
             {
-                LogError("Category mapping not initialized - using fallback");
+                Jotunn.Logger.LogError("Category mapping not initialized - using fallback");
                 return BuildCategory.None;
             }
 
             // Use the runtime category ID from the piece
             int categoryId = (int)piece.m_category;
-            
+
             // Check against cached category IDs
             if (_buildingCats.Contains(categoryId))
                 return BuildCategory.Building;
@@ -562,7 +536,7 @@ namespace TorvaldsPainters
                 return BuildCategory.Misc;
 
             // Log unknown categories for debugging
-            LogDetailed($"Unknown piece category ID {categoryId} for piece '{piece.name}'");
+            Jotunn.Logger.LogDebug($"Unknown piece category ID {categoryId} for piece '{piece.name}'");
             return BuildCategory.None;
         }
 
@@ -572,17 +546,17 @@ namespace TorvaldsPainters
             var go = piece.gameObject;
             FunctionalBucket f = FunctionalBucket.None;
 
-            if (go.GetComponentInChildren<CraftingStation>()  || go.GetComponentInChildren<StationExtension>()) f |= FunctionalBucket.Stations;
-            if (go.GetComponentInChildren<Smelter>()          || go.GetComponentInChildren<Fermenter>() ||
-                go.GetComponentInChildren<CookingStation>()   || go.GetComponentInChildren<Windmill>())     f |= FunctionalBucket.Production;
-            if (go.GetComponentInChildren<Container>())         f |= FunctionalBucket.Storage;
-            if (go.GetComponentInChildren<Bed>())               f |= FunctionalBucket.Beds;
-            if (go.GetComponentInChildren<TeleportWorld>()    || HasWardComponent(go)) f |= FunctionalBucket.PortalsWard;
-            if (go.GetComponentInChildren<Fireplace>()        || go.GetComponentInChildren<Light>()) f |= FunctionalBucket.Lighting;
-            if (go.GetComponentInChildren<Sign>()             || go.GetComponentInChildren<ItemStand>() ||
-                go.GetComponentInChildren<ArmorStand>())        f |= FunctionalBucket.SignsStands;
-            if (go.GetComponentInChildren<Ship>()             || go.GetComponentInChildren<Vagon>()) f |= FunctionalBucket.Transport;
-            if (MightBeDefense(piece))                          f |= FunctionalBucket.Defenses;
+            if (go.GetComponentInChildren<CraftingStation>() || go.GetComponentInChildren<StationExtension>()) f |= FunctionalBucket.Stations;
+            if (go.GetComponentInChildren<Smelter>() || go.GetComponentInChildren<Fermenter>() ||
+                go.GetComponentInChildren<CookingStation>() || go.GetComponentInChildren<Windmill>()) f |= FunctionalBucket.Production;
+            if (go.GetComponentInChildren<Container>()) f |= FunctionalBucket.Storage;
+            if (go.GetComponentInChildren<Bed>()) f |= FunctionalBucket.Beds;
+            if (go.GetComponentInChildren<TeleportWorld>() || HasWardComponent(go)) f |= FunctionalBucket.PortalsWard;
+            if (go.GetComponentInChildren<Fireplace>() || go.GetComponentInChildren<Light>()) f |= FunctionalBucket.Lighting;
+            if (go.GetComponentInChildren<Sign>() || go.GetComponentInChildren<ItemStand>() ||
+                go.GetComponentInChildren<ArmorStand>()) f |= FunctionalBucket.SignsStands;
+            if (go.GetComponentInChildren<Ship>() || go.GetComponentInChildren<Vagon>()) f |= FunctionalBucket.Transport;
+            if (MightBeDefense(piece)) f |= FunctionalBucket.Defenses;
 
             return f;
 
@@ -626,12 +600,12 @@ namespace TorvaldsPainters
             {
                 switch (wnt.m_materialType.ToString())
                 {
-                    case "Wood":        return MaterialBucket.Wood;
-                    case "Stone":       return MaterialBucket.Stone;
-                    case "Iron":        return MaterialBucket.Metal;
-                    case "Marble":      return MaterialBucket.Marble;     // Mistlands black marble
+                    case "Wood": return MaterialBucket.Wood;
+                    case "Stone": return MaterialBucket.Stone;
+                    case "Iron": return MaterialBucket.Metal;
+                    case "Marble": return MaterialBucket.Marble;     // Mistlands black marble
                     case "BlackMarble": return MaterialBucket.Marble;     // alt name in some versions
-                    default:            return MaterialBucket.Unknown;
+                    default: return MaterialBucket.Unknown;
                 }
             }
             return MaterialBucket.Unknown;
@@ -642,10 +616,10 @@ namespace TorvaldsPainters
         {
             return new PieceAttributes
             {
-                Prefab      = GetPrefabNameStable(piece),
-                Category    = MapCategory(piece),
-                Functional  = DetectFunctionalBuckets(piece),
-                Material    = MapMaterialBucket(piece),
+                Prefab = GetPrefabNameStable(piece),
+                Category = MapCategory(piece),
+                Functional = DetectFunctionalBuckets(piece),
+                Material = MapMaterialBucket(piece),
                 HasRenderer = piece.GetComponentInChildren<MeshRenderer>() != null
                            || piece.GetComponentInChildren<SkinnedMeshRenderer>() != null,
                 HasValidZNV = piece.GetComponent<ZNetView>()?.IsValid() == true,
@@ -658,31 +632,31 @@ namespace TorvaldsPainters
         {
             reason = "";
 
-            if (piece == null) 
-            { 
-                reason = "Not a building piece"; 
-                return false; 
+            if (piece == null)
+            {
+                reason = "Not a building piece";
+                return false;
             }
 
             var attrs = Classify(piece);
-            var cats  = AllowedCategoriesConfig.Value;
+            var cats = AllowedCategoriesConfig.Value;
             var funEx = ExcludedFunctionalConfig.Value;
-            var mats  = AllowedMaterialsConfig.Value;
+            var mats = AllowedMaterialsConfig.Value;
 
-            LogDebug($"Policy check: '{attrs.Prefab}' Category={attrs.Category} Functional={attrs.Functional} Material={attrs.Material}", LogLevel.Debug);
+            Jotunn.Logger.LogDebug($"Policy check: '{attrs.Prefab}' Category={attrs.Category} Functional={attrs.Functional} Material={attrs.Material}");
 
             // Blacklist hard-stop (overrides everything)
             if (_blacklist.Contains(attrs.Prefab))
             {
                 reason = "Excluded by blacklist configuration";
-                LogDetailed($"Policy: '{attrs.Prefab}' blacklisted");
+                Jotunn.Logger.LogDebug($"Policy: '{attrs.Prefab}' blacklisted");
                 return false;
             }
 
             // Whitelist beats everything else
             if (_whitelist.Contains(attrs.Prefab))
             {
-                LogDetailed($"Policy: '{attrs.Prefab}' whitelisted - allowing");
+                Jotunn.Logger.LogDebug($"Policy: '{attrs.Prefab}' whitelisted - allowing");
                 return FinalChecks(piece, attrs, hitPos, ref reason);
             }
 
@@ -690,7 +664,7 @@ namespace TorvaldsPainters
             if ((cats & attrs.Category) == 0)
             {
                 reason = $"Category '{attrs.Category}' not allowed";
-                LogDetailed($"Policy: '{attrs.Prefab}' category '{attrs.Category}' not in allowed categories '{cats}'");
+                Jotunn.Logger.LogDebug($"Policy: '{attrs.Prefab}' category '{attrs.Category}' not in allowed categories '{cats}'");
                 return false;
             }
 
@@ -699,7 +673,7 @@ namespace TorvaldsPainters
             {
                 var excludedFunctions = attrs.Functional & funEx;
                 reason = $"Functional group excluded: {excludedFunctions}";
-                LogDetailed($"Policy: '{attrs.Prefab}' has excluded functional components: {excludedFunctions}");
+                Jotunn.Logger.LogDebug($"Policy: '{attrs.Prefab}' has excluded functional components: {excludedFunctions}");
                 return false;
             }
 
@@ -707,11 +681,11 @@ namespace TorvaldsPainters
             if (attrs.Material != MaterialBucket.Unknown && (mats & attrs.Material) == 0)
             {
                 reason = $"Material '{attrs.Material}' not allowed";
-                LogDetailed($"Policy: '{attrs.Prefab}' material '{attrs.Material}' not in allowed materials '{mats}'");
+                Jotunn.Logger.LogDebug($"Policy: '{attrs.Prefab}' material '{attrs.Material}' not in allowed materials '{mats}'");
                 return false;
             }
 
-            LogBasic($"Policy: '{attrs.Prefab}' passed all policy checks");
+            Jotunn.Logger.LogDebug($"Policy: '{attrs.Prefab}' passed all policy checks");
             return FinalChecks(piece, attrs, hitPos, ref reason);
         }
 
@@ -721,23 +695,23 @@ namespace TorvaldsPainters
             if (!attrs.HasRenderer)
             {
                 reason = "Object has no renderers to paint";
-                LogDetailed($"FinalChecks: '{attrs.Prefab}' has no renderers");
+                Jotunn.Logger.LogDebug($"FinalChecks: '{attrs.Prefab}' has no renderers");
                 return false;
             }
             if (!attrs.HasValidZNV)
             {
                 reason = "Object cannot sync in multiplayer";
-                LogDetailed($"FinalChecks: '{attrs.Prefab}' missing/invalid ZNetView");
+                Jotunn.Logger.LogDebug($"FinalChecks: '{attrs.Prefab}' missing/invalid ZNetView");
                 return false;
             }
             if (RequireBuildPermissionConfig.Value && !PrivateArea.CheckAccess(hitPos))
             {
                 reason = "No build permission for this area";
-                LogDetailed($"FinalChecks: '{attrs.Prefab}' denied by PrivateArea at {hitPos}");
+                Jotunn.Logger.LogDebug($"FinalChecks: '{attrs.Prefab}' denied by PrivateArea at {hitPos}");
                 return false;
             }
-            
-            LogDetailed($"FinalChecks: '{attrs.Prefab}' passed all final checks");
+
+            Jotunn.Logger.LogDebug($"FinalChecks: '{attrs.Prefab}' passed all final checks");
             return true;
         }
 
@@ -752,7 +726,7 @@ namespace TorvaldsPainters
             if (!player)
             {
                 errorMessage = "No local player found";
-                LogError("GetPaintableObjectAtLook: No local player found");
+                Jotunn.Logger.LogError("GetPaintableObjectAtLook: No local player found");
                 return null;
             }
 
@@ -760,30 +734,30 @@ namespace TorvaldsPainters
             if (!camera)
             {
                 errorMessage = "No main camera found";
-                LogError("GetPaintableObjectAtLook: No main camera found");
+                Jotunn.Logger.LogError("GetPaintableObjectAtLook: No main camera found");
                 return null;
             }
 
             // Create ray from camera through mouse position
             var ray = camera.ScreenPointToRay(Input.mousePosition);
-            LogDebug($"GetPaintableObjectAtLook: Ray origin={ray.origin}, direction={ray.direction}", LogLevel.Debug);
+            Jotunn.Logger.LogDebug($"GetPaintableObjectAtLook: Ray origin={ray.origin}, direction={ray.direction}");
 
             float maxDistance = MaxPaintDistanceConfig.Value;
-            
+
             // Use proper named layer mask for building pieces
-            LogDebug($"GetPaintableObjectAtLook: Using PaintPieceMask for layers: piece, piece_nonsolid, Default, Default_small, static_solid", LogLevel.Debug);
+            Jotunn.Logger.LogDebug($"GetPaintableObjectAtLook: Using PaintPieceMask for layers: piece, piece_nonsolid, Default, Default_small, static_solid");
 
             // Use NonAlloc to avoid GC pressure, ignore triggers
             int n = Physics.RaycastNonAlloc(ray, _hitsBuf, maxDistance, PaintPieceMask, QueryTriggerInteraction.Ignore);
-            
+
             if (n <= 0)
             {
                 errorMessage = "No objects found in range";
-                LogDetailed($"GetPaintableObjectAtLook: No raycast hits found (maxDistance={maxDistance})");
+                Jotunn.Logger.LogDebug($"GetPaintableObjectAtLook: No raycast hits found (maxDistance={maxDistance})");
                 return null;
             }
 
-            LogDetailed($"GetPaintableObjectAtLook: Found {n} raycast hits");
+            Jotunn.Logger.LogDebug($"GetPaintableObjectAtLook: Found {n} raycast hits");
 
             // Sort the slice [0..n) by distance
             System.Array.Sort(_hitsBuf, 0, n, Comparer<RaycastHit>.Create((a, b) => a.distance.CompareTo(b.distance)));
@@ -793,40 +767,40 @@ namespace TorvaldsPainters
             {
                 var hit = _hitsBuf[i];
                 distance = hit.distance;
-                
-                LogDebug($"GetPaintableObjectAtLook: Hit {i}: object='{hit.collider.name}', distance={hit.distance:F2}m, layer={hit.collider.gameObject.layer} ({LayerMask.LayerToName(hit.collider.gameObject.layer)})", LogLevel.Debug);
-                
+
+                Jotunn.Logger.LogDebug($"GetPaintableObjectAtLook: Hit {i}: object='{hit.collider.name}', distance={hit.distance:F2}m, layer={hit.collider.gameObject.layer} ({LayerMask.LayerToName(hit.collider.gameObject.layer)})");
+
                 // Walk up to find the Piece component (hit might be a child collider)
                 var piece = hit.collider.GetComponentInParent<Piece>();
                 if (!piece)
                 {
-                    LogDetailed($"GetPaintableObjectAtLook: Hit {i} '{hit.collider.name}' has no Piece component in parent");
+                    Jotunn.Logger.LogDebug($"GetPaintableObjectAtLook: Hit {i} '{hit.collider.name}' has no Piece component in parent");
                     continue;
                 }
-                
-                LogDebug($"GetPaintableObjectAtLook: Found Piece component on '{piece.name}'", LogLevel.Debug);
-                
+
+                Jotunn.Logger.LogDebug($"GetPaintableObjectAtLook: Found Piece component on '{piece.name}'");
+
                 // Use new policy engine for validation
                 string reason;
                 if (IsPaintableByPolicy(piece, hit.point, out reason))
                 {
-                    LogBasic($"GetPaintableObjectAtLook: Found paintable piece '{piece.name}' at {hit.distance:F2}m");
+                    Jotunn.Logger.LogDebug($"GetPaintableObjectAtLook: Found paintable piece '{piece.name}' at {hit.distance:F2}m");
                     return piece.gameObject;
                 }
                 else
                 {
-                    LogDetailed($"GetPaintableObjectAtLook: Piece '{piece.name}' rejected by policy: {reason}");
+                    Jotunn.Logger.LogDebug($"GetPaintableObjectAtLook: Piece '{piece.name}' rejected by policy: {reason}");
                     errorMessage = reason; // Tell user why the front piece can't be painted
                     return null;           // Do not scan behind it - treat as occluder
                 }
             }
-            
+
             // No paintable objects found
-            errorMessage = n == 1 
-                ? "Object cannot be painted" 
+            errorMessage = n == 1
+                ? "Object cannot be painted"
                 : $"None of the {n} objects found can be painted";
-            LogDetailed($"GetPaintableObjectAtLook: {errorMessage}");
-            
+            Jotunn.Logger.LogDebug($"GetPaintableObjectAtLook: {errorMessage}");
+
             return null;
         }
 
@@ -848,10 +822,10 @@ namespace TorvaldsPainters
 
             if (technicalError.Contains("No build permission"))
                 return "❌ No permission to paint here";
-                
+
             if (technicalError.Contains("exclusion list"))
                 return "❌ This object is excluded from painting";
-                
+
             if (technicalError.Contains("Functional pieces"))
                 return "❌ Cannot paint functional objects";
 
@@ -1035,11 +1009,20 @@ namespace TorvaldsPainters
 
             PieceManager.Instance.AddPieceTable(paintingPieceTable);
 
-            Jotunn.Logger.LogInfo("🎨 Created piece table with default Paint Mode piece");
+            Jotunn.Logger.LogDebug("🎨 Created piece table with default Paint Mode piece");
         }
 
         private void CreatePaintingMallet()
         {
+            // Clone the hammer prefab first (like dye vat does)
+            var cloned = PrefabManager.Instance.CreateClonedPrefab("TorvaldsMallet", "Hammer");
+            if (!cloned)
+            {
+                Jotunn.Logger.LogError("Could not clone hammer for painting mallet");
+                return;
+            }
+
+
             // Create ItemConfig with dynamic recipe
             var itemConfig = new ItemConfig
             {
@@ -1056,8 +1039,8 @@ namespace TorvaldsPainters
                 itemConfig.CraftingStation = "piece_workbench";
             }
 
-            // Create CustomItem using Jötunn approach - clone hammer for visuals
-            var mallet = new CustomItem("TorvaldsMallet", "Hammer", itemConfig);
+            // Create CustomItem from the pre-tinted cloned prefab
+            var mallet = new CustomItem(cloned, true, itemConfig);
             ItemManager.Instance.AddItem(mallet);
 
             // Configure as proper tool (not weapon)
@@ -1086,9 +1069,9 @@ namespace TorvaldsPainters
             shared.m_attack.m_attackRange = 0f;
             shared.m_secondaryAttack.m_attackAnimation = "";
 
-            Jotunn.Logger.LogInfo("🎨 Created proper painting mallet tool with empty piece table");
+            Jotunn.Logger.LogDebug("🎨 Created proper painting mallet tool with empty piece table");
 
-            // Customize appearance
+            // Customize appearance with embedded icon
             CustomizePaintingMalletAppearance(mallet.ItemPrefab);
 
             // Add localization
@@ -1113,44 +1096,63 @@ namespace TorvaldsPainters
             });
         }
 
-        private void CustomizePaintingMalletAppearance(GameObject malletPrefab)
+        private static Sprite LoadEmbeddedPngSprite(string resourceName, float ppu = 100f)
         {
-            try
+            var asm = System.Reflection.Assembly.GetExecutingAssembly();
+            using (var s = asm.GetManifestResourceStream(resourceName))
             {
-                // Color the painting mallet with a distinctive paint-splattered look
-                Color paintColor = new Color(0.8f, 0.6f, 0.4f); // Warm brown/orange paint color
+                if (s == null) return null;
+                byte[] bytes = new byte[s.Length];
+                _ = s.Read(bytes, 0, bytes.Length);
 
-                // Find and color all renderers in the prefab
-                var renderers = malletPrefab.GetComponentsInChildren<MeshRenderer>();
-                foreach (var renderer in renderers)
-                {
-                    if (renderer.materials != null)
-                    {
-                        foreach (var material in renderer.materials)
-                        {
-                            // Tint the material with paint color
-                            material.color = Color.Lerp(material.color, paintColor, 0.3f);
-                        }
-                    }
-                }
+                var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                if (!tex.LoadImage(bytes, markNonReadable: false)) return null;
 
-                Jotunn.Logger.LogInfo("🎨 Customized painting mallet appearance with paint color tint");
-            }
-            catch (System.Exception ex)
-            {
-                Jotunn.Logger.LogError($"❌ Error customizing mallet appearance: {ex.Message}");
+                tex.filterMode = FilterMode.Bilinear;
+                tex.wrapMode = TextureWrapMode.Clamp;
+
+                return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height),
+                                     new Vector2(0.5f, 0.5f), ppu);
             }
         }
 
-        // Apply color to building piece using MaterialMan for proper persistence
-        public static void ApplyColorToPiece(Piece piece, string colorName)
+        private void CustomizePaintingMalletAppearance(GameObject malletPrefab)
+        {
+            var drop = malletPrefab.GetComponent<ItemDrop>();
+            if (drop != null)
+            {
+                var shared = drop.m_itemData.m_shared;
+
+                // Debug: List all embedded resources to find the correct name
+                var asm = System.Reflection.Assembly.GetExecutingAssembly();
+                var resources = asm.GetManifestResourceNames();
+                // Resource discovery logging
+                Jotunn.Logger.LogDebug($"Available embedded resources: {string.Join(", ", resources)}");
+                Jotunn.Logger.LogDebug($"Number of resources found: {resources.Length}");
+
+                // Load embedded custom icon - the resource name uses hyphens (from project namespace)
+                var customIcon = LoadEmbeddedPngSprite("torvalds-painters.mallet.png", 100f);
+                if (customIcon != null)
+                {
+                    shared.m_icons = new[] { customIcon };
+                    Jotunn.Logger.LogDebug("🎨 Applied embedded custom icon for painting mallet");
+                }
+                else
+                {
+                    Jotunn.Logger.LogWarning("⚠️ Embedded icon not found; leaving default hammer icon.");
+                }
+            }
+        }
+
+        // Apply color to building piece; optionally persist and/or log
+        public static void ApplyColorToPiece(Piece piece, string colorName, bool persistToZdo = true, bool logOnApply = true)
         {
             if (!VikingColors.TryGetValue(colorName, out Color color))
                 return;
 
             // Apply subtle dimming for stone/marble materials to prevent plasticky appearance
             var wnt = piece.GetComponent<WearNTear>();
-            if (wnt && (wnt.m_materialType == WearNTear.MaterialType.Stone || 
+            if (wnt && (wnt.m_materialType == WearNTear.MaterialType.Stone ||
                        wnt.m_materialType.ToString().Contains("Marble")))
             {
                 color *= 0.9f; // 10% dimming for masonry materials
@@ -1174,14 +1176,25 @@ namespace TorvaldsPainters
                 }
             }
 
-            // Store color data on the piece for persistence
-            var zdo = piece.GetComponent<ZNetView>()?.GetZDO();
-            if (zdo != null)
+            // Store color data on the piece for persistence (if asked, when changed)
+            if (persistToZdo)
             {
-                zdo.Set("TorvaldsPainters.Color", colorName);
+                var zdo = piece.GetComponent<ZNetView>()?.GetZDO();
+                if (zdo != null)
+                {
+                    string current = zdo.GetString("TorvaldsPainters.Color", "");
+                    if (!string.Equals(current, colorName, StringComparison.Ordinal))
+                    {
+                        zdo.Set("TorvaldsPainters.Color", colorName);
+                    }
+                }
             }
 
-            Jotunn.Logger.LogInfo($"Applied {colorName} to piece {piece.name}");
+            // Log only for real paints or at higher debug levels
+            if (logOnApply)
+            {
+                Jotunn.Logger.LogInfo($"Applied {colorName} to piece {piece.name}");
+            }
         }
 
         // Input handling variables
@@ -1199,18 +1212,18 @@ namespace TorvaldsPainters
                 }
             });
 
-            Jotunn.Logger.LogInfo("🎨 Registered painting mallet key hints");
+            Jotunn.Logger.LogDebug("🎨 Registered painting mallet key hints");
         }
 
         // Paint the piece the player is looking at - Enhanced with comprehensive validation
         public void PaintAtLook()
         {
-            LogBasic("PaintAtLook: Paint attempt started");
+            Jotunn.Logger.LogDebug("PaintAtLook: Paint attempt started");
 
             var player = Player.m_localPlayer;
             if (player == null)
             {
-                LogError("PaintAtLook: No local player found");
+                Jotunn.Logger.LogError("PaintAtLook: No local player found");
                 return;
             }
 
@@ -1224,7 +1237,7 @@ namespace TorvaldsPainters
                 // Show specific error message to player
                 string userMessage = GetUserFriendlyErrorMessage(errorMessage);
                 player.Message(MessageHud.MessageType.TopLeft, userMessage);
-                LogBasic($"PaintAtLook: Failed - {errorMessage}");
+                Jotunn.Logger.LogDebug($"PaintAtLook: Failed - {errorMessage}");
                 return;
             }
 
@@ -1232,7 +1245,7 @@ namespace TorvaldsPainters
             var piece = targetObject.GetComponentInParent<Piece>();
             if (piece == null)
             {
-                LogError("PaintAtLook: Object passed validation but has no Piece component - this should not happen");
+                Jotunn.Logger.LogError("PaintAtLook: Object passed validation but has no Piece component - this should not happen");
                 player.Message(MessageHud.MessageType.TopLeft, "$paint_cannot_paint");
                 return;
             }
@@ -1245,11 +1258,11 @@ namespace TorvaldsPainters
                 // Success feedback
                 string successMessage = $"🎨 Painted {piece.name} with {currentSelectedColor}!";
                 player.Message(MessageHud.MessageType.TopLeft, successMessage);
-                LogBasic($"PaintAtLook: Successfully painted '{piece.name}' with '{currentSelectedColor}' at {distance:F2}m");
+                Jotunn.Logger.LogInfo($"🎨 Painted '{piece.name}' with '{currentSelectedColor}'");
             }
             catch (System.Exception ex)
             {
-                LogError($"PaintAtLook: Failed to apply color to '{piece.name}': {ex.Message}");
+                Jotunn.Logger.LogError($"PaintAtLook: Failed to apply color to '{piece.name}': {ex.Message}");
                 player.Message(MessageHud.MessageType.TopLeft, "Failed to paint object");
             }
         }
@@ -1412,7 +1425,7 @@ namespace TorvaldsPainters
                 player.Message(MessageHud.MessageType.Center, $"🎨 Selected: {colorName}");
             }
 
-            Jotunn.Logger.LogInfo($"🎨 Color selected from GUI: {colorName}");
+            Jotunn.Logger.LogDebug($"🎨 Color selected from GUI: {colorName}");
 
             // Close the picker
             CloseColorPicker();
@@ -1534,13 +1547,17 @@ namespace TorvaldsPainters
     {
         static void Postfix(Piece __instance)
         {
+            // Purely visual client work; skip on dedicated servers
+            if (ZNet.instance != null && ZNet.instance.IsDedicated()) return;
+
             var nview = __instance.GetComponent<ZNetView>();
             if (nview == null || !nview.IsValid()) return;
 
             string colorName = nview.GetZDO().GetString("TorvaldsPainters.Color", "");
             if (!string.IsNullOrEmpty(colorName))
             {
-                TorvaldsPainters.ApplyColorToPiece(__instance, colorName);
+                // Restore without touching ZDO or logging
+                TorvaldsPainters.ApplyColorToPiece(__instance, colorName, persistToZdo: false, logOnApply: false);
             }
         }
     }
@@ -1551,17 +1568,40 @@ namespace TorvaldsPainters
     {
         static void Postfix(WearNTear __instance)
         {
+            // var piece = __instance.GetComponent<Piece>();
+            // var nview = __instance.GetComponent<ZNetView>();
+
+            // if (piece && nview?.IsValid() == true)
+            // {
+            //     string colorName = nview.GetZDO().GetString("TorvaldsPainters.Color", "");
+            //     if (!string.IsNullOrEmpty(colorName))
+            //     {
+            //         TorvaldsPainters.ApplyColorToPiece(piece, colorName);
+            //     }
+            // }
+            // Purely visual client work; skip on dedicated servers
+            if (ZNet.instance != null && ZNet.instance.IsDedicated()) return;
+
             var piece = __instance.GetComponent<Piece>();
             var nview = __instance.GetComponent<ZNetView>();
+            if (!(piece && nview?.IsValid() == true)) return;
 
-            if (piece && nview?.IsValid() == true)
+            string colorName = nview.GetZDO().GetString("TorvaldsPainters.Color", "");
+            if (string.IsNullOrEmpty(colorName)) return;
+
+            // Throttle: avoid reapplying too frequently per piece
+            int key = piece.gameObject.GetInstanceID();
+            float now = Time.time;
+            if (TorvaldsPainters._lastApply.TryGetValue(key, out var entry))
             {
-                string colorName = nview.GetZDO().GetString("TorvaldsPainters.Color", "");
-                if (!string.IsNullOrEmpty(colorName))
+                if (entry.color == colorName && (now - entry.t) < TorvaldsPainters.HighlightReapplyMinInterval)
                 {
-                    TorvaldsPainters.ApplyColorToPiece(piece, colorName);
+                    return; // too soon; skip
                 }
             }
+
+            TorvaldsPainters.ApplyColorToPiece(piece, colorName, persistToZdo: false, logOnApply: false);
+            TorvaldsPainters._lastApply[key] = (colorName, now);
         }
     }
 }
