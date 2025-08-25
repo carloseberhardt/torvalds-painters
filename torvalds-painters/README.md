@@ -3,7 +3,9 @@
 
 A Valheim mod that lets you paint building pieces with a variety of colors. Torvald's got you covered with his trusty painting mallet - craft it, equip it, and start adding some color to those drab wooden halls.
 
-![picture of a painted barn](screen.png)
+Now, before you start thinking old Torvald's going to let you paint your longhouse hot pink or neon green - think again! I'm a respectable craftsman, not some crazed alchemist. My colors are carefully chosen to complement what the gods have already blessed us with in this realm. You'll find wood tones that actually look like *wood*, and paint colors that won't make the neighbors think you've been sampling too much fermented honey. This isn't about turning Valheim into some garish carnival - it's about giving your builds the subtle character they deserve, using colors that actually belong in a Viking's world.
+
+![a painted barn](https://raw.githubusercontent.com/carloseberhardt/torvalds-painters/refs/heads/main/torvalds-painters/screen.png)
 
 ## Features
 
@@ -114,33 +116,3 @@ Torvald's business model is flexible - want to make his services more exclusive?
 
 Install with a mod manager or manually place the files in your BepInEx/plugins folder. Requires BepInEx and Jotunn.
 
-## Changelog
-
-**v1.2.0**
-- Added custom paint-splattered mallet icon to distinguish it from regular hammer
-- Significantly cleaned up logging - only essential actions logged at normal level
-- Improved icon embedding system for better mod distribution
-- Enhanced debugging capabilities with proper Jötunn logging integration
-- Better performance with throttled color reapplication system
-
-**v1.1.0**
-- Added Orange and Purple paint colors (13 total colors now)
-- Enhanced color palette with improved wood tone progression
-- Balanced paint color brightness to reduce blowout on some materials
-- Stone and marble materials now automatically dim slightly for more realistic appearance
-- Improved color picker GUI with two-column layout for better organization
-
-**v1.0.1**
-- Fixed major painting bug where you could accidentally paint objects behind non-paintable pieces
-- Improved user feedback when painting is blocked by objects like workbenches or forges
-- Enhanced raycasting system for more consistent painting behavior
-
-**v1.0.0**
-- Added configurable recipe system
-- Added individual color customization
-- Added workbench requirement toggle
-- Improved color picker interface
-- Better config validation and error handling
-
-**v0.1.0**  
-- Torvald opened his first paint shop
