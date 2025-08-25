@@ -3,6 +3,8 @@
 
 A Valheim mod that lets you paint building pieces with a variety of colors. Torvald's got you covered with his trusty painting mallet - craft it, equip it, and start adding some color to those drab wooden halls.
 
+![picture of a painted barn](screen.png)
+
 ## Features
 
 - Paint building pieces with 13 different colors (5 wood tones, 8 paint colors)
