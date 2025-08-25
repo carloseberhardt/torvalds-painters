@@ -6,6 +6,7 @@ A Valheim mod that lets you paint building pieces with a variety of colors. Torv
 ## Features
 
 - Paint building pieces with 13 different colors (5 wood tones, 8 paint colors)
+- Custom paint-splattered mallet icon to easily distinguish from regular hammer
 - Left-click to paint, right-click to open color selector
 - Colors persist across game sessions and work in multiplayer
 - Configurable recipe system - server admins can change what materials are required
@@ -112,6 +113,13 @@ Torvald's business model is flexible - want to make his services more exclusive?
 Install with a mod manager or manually place the files in your BepInEx/plugins folder. Requires BepInEx and Jotunn.
 
 ## Changelog
+
+**v1.2.0**
+- Added custom paint-splattered mallet icon to distinguish it from regular hammer
+- Significantly cleaned up logging - only essential actions logged at normal level
+- Improved icon embedding system for better mod distribution
+- Enhanced debugging capabilities with proper Jötunn logging integration
+- Better performance with throttled color reapplication system
 
 **v1.1.0**
 - Added Orange and Purple paint colors (13 total colors now)

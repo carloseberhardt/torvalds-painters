@@ -116,7 +116,7 @@ namespace TorvaldsPainters
     {
         public const string PluginGUID = "com.torvald.painters";
         public const string PluginName = "Torvald's Affordable Painters";
-        public const string PluginVersion = "1.2.0";
+        public const string PluginVersion = "1.2.2";
 
         // Configuration entries
         #region Configuration
@@ -1095,6 +1095,38 @@ namespace TorvaldsPainters
                 {"paint_close_button", "Close"}
             });
         }
+        
+        // RPC handler - applies color locally without touching the ZDO
+        internal static void OnRpcSetColor(long sender, ZDOID id, string colorName)
+        {
+            // Skip on dedicated servers - this is purely visual
+            if (ZNet.instance != null && ZNet.instance.IsDedicated())
+                return;
+                
+            // Find the live instance
+            GameObject go = null;
+            if (ZNetScene.instance != null)
+            {
+                go = ZNetScene.instance.FindInstance(id);
+            }
+            
+            if (go == null)
+            {
+                Jotunn.Logger.LogDebug($"TP_SetColor: Instance not found for ZDOID {id}");
+                return;
+            }
+            
+            var piece = go.GetComponentInParent<Piece>();
+            if (piece == null)
+            {
+                Jotunn.Logger.LogDebug($"TP_SetColor: No Piece component found on {go.name}");
+                return;
+            }
+            
+            // Apply color visually only (persistToZdo: false prevents re-writing ZDO)
+            ApplyColorToPiece(piece, colorName, persistToZdo: false, logOnApply: false);
+            Jotunn.Logger.LogDebug($"TP_SetColor: Applied {colorName} to {piece.name} from RPC");
+        }
 
         private static Sprite LoadEmbeddedPngSprite(string resourceName, float ppu = 100f)
         {
@@ -1254,6 +1286,21 @@ namespace TorvaldsPainters
             try
             {
                 ApplyColorToPiece(piece, currentSelectedColor);
+                
+                // Broadcast color change to all clients for immediate sync
+                var znv = piece.GetComponent<ZNetView>();
+                if (znv != null && znv.IsValid() && ZRoutedRpc.instance != null)
+                {
+                    // ZDO already set inside ApplyColorToPiece (persistToZdo:true by default)
+                    // Now push an immediate visual update to everyone
+                    ZRoutedRpc.instance.InvokeRoutedRPC(
+                        ZRoutedRpc.Everybody,
+                        "TP_SetColor",
+                        znv.GetZDO().m_uid,
+                        currentSelectedColor
+                    );
+                    Jotunn.Logger.LogDebug($"Broadcasted color change for {piece.name} to all clients");
+                }
 
                 // Success feedback
                 string successMessage = $"🎨 Painted {piece.name} with {currentSelectedColor}!";
@@ -1538,6 +1585,20 @@ namespace TorvaldsPainters
             }
 
             return true; // Allow normal repair for other tools
+        }
+    }
+
+    // Register RPC when the game is ready
+    [HarmonyPatch(typeof(Game), "Start")]
+    public static class GameStartPatch
+    {
+        static void Postfix()
+        {
+            if (ZRoutedRpc.instance != null)
+            {
+                ZRoutedRpc.instance.Register<ZDOID, string>("TP_SetColor", TorvaldsPainters.OnRpcSetColor);
+                Jotunn.Logger.LogInfo("🔗 Multiplayer color sync ready");
+            }
         }
     }
 
