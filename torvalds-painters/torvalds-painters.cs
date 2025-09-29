@@ -40,6 +40,17 @@ public static class MaterialManExtensions
 
 namespace TorvaldsPainters
 {
+    // Configuration manager attributes for server sync and GUI display
+    public class ConfigurationManagerAttributes
+    {
+        public bool? IsAdminOnly { get; set; }
+        public bool? IsAdvanced { get; set; }
+        public int? Order { get; set; }
+        public bool? Browsable { get; set; }
+        public string Category { get; set; }
+        public System.Action<BepInEx.Configuration.ConfigEntryBase> CustomDrawer { get; set; }
+    }
+
     // Component for scoped ESC key handling when color picker is open
     public class PickerCloser : MonoBehaviour
     {
@@ -116,7 +127,7 @@ namespace TorvaldsPainters
     {
         public const string PluginGUID = "com.torvald.painters";
         public const string PluginName = "Torvald's Affordable Painters";
-        public const string PluginVersion = "1.2.2";
+        public const string PluginVersion = "1.3.0";
 
         // Configuration entries
         #region Configuration
@@ -126,21 +137,21 @@ namespace TorvaldsPainters
         private static ConfigEntry<bool> RequireWorkbenchConfig;
 
         // Color configuration - Wood tones
-        private static ConfigEntry<string> DarkBrownColorConfig;
-        private static ConfigEntry<string> MediumBrownColorConfig;
-        private static ConfigEntry<string> NaturalWoodColorConfig;
-        private static ConfigEntry<string> LightBrownColorConfig;
-        private static ConfigEntry<string> PaleWoodColorConfig;
+        private static ConfigEntry<Color> DarkBrownColorConfig;
+        private static ConfigEntry<Color> MediumBrownColorConfig;
+        private static ConfigEntry<Color> NaturalWoodColorConfig;
+        private static ConfigEntry<Color> LightBrownColorConfig;
+        private static ConfigEntry<Color> PaleWoodColorConfig;
 
         // Color configuration - Paint colors
-        private static ConfigEntry<string> BlackColorConfig;
-        private static ConfigEntry<string> WhiteColorConfig;
-        private static ConfigEntry<string> RedColorConfig;
-        private static ConfigEntry<string> BlueColorConfig;
-        private static ConfigEntry<string> GreenColorConfig;
-        private static ConfigEntry<string> YellowColorConfig;
-        private static ConfigEntry<string> OrangeColorConfig;
-        private static ConfigEntry<string> PurpleColorConfig;
+        private static ConfigEntry<Color> BlackColorConfig;
+        private static ConfigEntry<Color> WhiteColorConfig;
+        private static ConfigEntry<Color> RedColorConfig;
+        private static ConfigEntry<Color> BlueColorConfig;
+        private static ConfigEntry<Color> GreenColorConfig;
+        private static ConfigEntry<Color> YellowColorConfig;
+        private static ConfigEntry<Color> OrangeColorConfig;
+        private static ConfigEntry<Color> PurpleColorConfig;
 
         // Debug configuration
         private static ConfigEntry<LogLevel> LogLevelConfig;
@@ -164,24 +175,8 @@ namespace TorvaldsPainters
         // Harmony instance for patches
         private Harmony harmony;
 
-        // Color values for painting - loaded from configuration with defaults
-        public static readonly Dictionary<string, Color> VikingColors = new Dictionary<string, Color>()
-        {
-            // Wood shades - Natural Wood in center, 2 darker, 2 lighter
-            {"Dark Brown", new Color(0.6f, 0.3f, 0.1f)}, // Darkest wood
-            {"Medium Brown", Color.white}, // MATCHES natural wood perfectly - this was the key!
-            {"Natural Wood", new Color(1.0f, 1.0f, 1.0f)}, // Base wood color
-            {"Light Brown", new Color(1.3f, 1.1f, 0.9f)}, // Lighter wood
-            {"Pale Wood", new Color(1.5f, 1.3f, 1.1f)}, // Lightest wood
-            
-            // Banner colors that looked perfect
-            {"Black", new Color(0.1f, 0.1f, 0.1f)}, // Deep black
-            {"White", new Color(2.5f, 2.5f, 2.5f)}, // Bright white
-            {"Red", new Color(1.5f, 0.2f, 0.2f)}, // Vibrant red
-            {"Blue", new Color(0.2f, 0.3f, 1.5f)}, // True blue  
-            {"Green", new Color(0.3f, 1.5f, 0.3f)}, // Vibrant green
-            {"Yellow", new Color(1.8f, 1.6f, 0.2f)} // Bright yellow
-        };
+        // Color values for painting - loaded from configuration
+        public static readonly Dictionary<string, Color> VikingColors = new Dictionary<string, Color>();
 
         // Current state
         public static string currentSelectedColor = "Natural Wood";
@@ -251,51 +246,81 @@ namespace TorvaldsPainters
                 "- Early game: \"Wood:10,LeatherScraps:5,Coal:1\"\n" +
                 "- Mid game: \"FineWood:8,Bronze:2,LeatherScraps:3\"\n" +
                 "- Late game: \"BlackMetal:1,Silver:2,LoxPelt:1\"\n" +
-                "Use exact Valheim item names (case sensitive)"));
+                "Use exact Valheim item names (case sensitive)",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
             RequireWorkbenchConfig = Config.Bind("Recipe", "RequireWorkbench", true,
-                new ConfigDescription("Whether the painting mallet requires a workbench to craft"));
+                new ConfigDescription("Whether the painting mallet requires a workbench to craft",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
             // Wood tone colors configuration
-            DarkBrownColorConfig = Config.Bind("Colors.WoodTones", "DarkBrown", "0.65,0.35,0.20",
-                new ConfigDescription("RGB color values for Dark Brown (format: R,G,B with values 0.0-3.0)"));
+            DarkBrownColorConfig = Config.Bind("Colors.WoodTones", "DarkBrown", new Color(0.65f, 0.35f, 0.20f),
+                new ConfigDescription("Color for Dark Brown wood stain",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
-            MediumBrownColorConfig = Config.Bind("Colors.WoodTones", "MediumBrown", "0.80,0.60,0.45",
-                new ConfigDescription("RGB color values for Medium Brown (format: R,G,B with values 0.0-3.0)"));
+            MediumBrownColorConfig = Config.Bind("Colors.WoodTones", "MediumBrown", new Color(0.80f, 0.60f, 0.45f),
+                new ConfigDescription("Color for Medium Brown wood stain",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
-            NaturalWoodColorConfig = Config.Bind("Colors.WoodTones", "NaturalWood", "1.0,1.0,1.0",
-                new ConfigDescription("RGB color values for Natural Wood (format: R,G,B with values 0.0-3.0)"));
+            NaturalWoodColorConfig = Config.Bind("Colors.WoodTones", "NaturalWood", new Color(1.0f, 1.0f, 1.0f),
+                new ConfigDescription("Color for Natural Wood (default)",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
-            LightBrownColorConfig = Config.Bind("Colors.WoodTones", "LightBrown", "1.15,1.05,0.90",
-                new ConfigDescription("RGB color values for Light Brown (format: R,G,B with values 0.0-3.0)"));
+            LightBrownColorConfig = Config.Bind("Colors.WoodTones", "LightBrown", new Color(1.15f, 1.05f, 0.90f),
+                new ConfigDescription("Color for Light Brown wood stain",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
-            PaleWoodColorConfig = Config.Bind("Colors.WoodTones", "PaleWood", "1.30,1.15,1.00",
-                new ConfigDescription("RGB color values for Pale Wood (format: R,G,B with values 0.0-3.0)"));
+            PaleWoodColorConfig = Config.Bind("Colors.WoodTones", "PaleWood", new Color(1.30f, 1.15f, 1.00f),
+                new ConfigDescription("Color for Pale Wood stain",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
             // Paint colors configuration
-            BlackColorConfig = Config.Bind("Colors.PaintColors", "Black", "0.1,0.1,0.1",
-                new ConfigDescription("RGB color values for Black (format: R,G,B with values 0.0-3.0)"));
+            BlackColorConfig = Config.Bind("Colors.PaintColors", "Black", new Color(0.1f, 0.1f, 0.1f),
+                new ConfigDescription("Color for Black paint",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
-            WhiteColorConfig = Config.Bind("Colors.PaintColors", "White", "2.0,2.0,2.0",
-                new ConfigDescription("RGB color values for White (format: R,G,B with values 0.0-3.0)"));
+            WhiteColorConfig = Config.Bind("Colors.PaintColors", "White", new Color(2.0f, 2.0f, 2.0f),
+                new ConfigDescription("Color for White paint",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
-            RedColorConfig = Config.Bind("Colors.PaintColors", "Red", "1.5,0.2,0.2",
-                new ConfigDescription("RGB color values for Red (format: R,G,B with values 0.0-3.0)"));
+            RedColorConfig = Config.Bind("Colors.PaintColors", "Red", new Color(1.5f, 0.2f, 0.2f),
+                new ConfigDescription("Color for Red paint",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
-            BlueColorConfig = Config.Bind("Colors.PaintColors", "Blue", "0.25,0.35,1.40",
-                new ConfigDescription("RGB color values for Blue (format: R,G,B with values 0.0-3.0)"));
+            BlueColorConfig = Config.Bind("Colors.PaintColors", "Blue", new Color(0.25f, 0.35f, 1.40f),
+                new ConfigDescription("Color for Blue paint",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
-            GreenColorConfig = Config.Bind("Colors.PaintColors", "Green", "0.30,1.30,0.30",
-                new ConfigDescription("RGB color values for Green (format: R,G,B with values 0.0-3.0)"));
+            GreenColorConfig = Config.Bind("Colors.PaintColors", "Green", new Color(0.30f, 1.30f, 0.30f),
+                new ConfigDescription("Color for Green paint",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
-            YellowColorConfig = Config.Bind("Colors.PaintColors", "Yellow", "1.60,1.40,0.25",
-                new ConfigDescription("RGB color values for Yellow (format: R,G,B with values 0.0-3.0)"));
+            YellowColorConfig = Config.Bind("Colors.PaintColors", "Yellow", new Color(1.60f, 1.40f, 0.25f),
+                new ConfigDescription("Color for Yellow paint",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
-            OrangeColorConfig = Config.Bind("Colors.PaintColors", "Orange", "1.5,0.9,0.25",
-                new ConfigDescription("RGB color values for Orange (format: R,G,B with values 0.0-3.0)"));
+            OrangeColorConfig = Config.Bind("Colors.PaintColors", "Orange", new Color(1.5f, 0.9f, 0.25f),
+                new ConfigDescription("Color for Orange paint",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
-            PurpleColorConfig = Config.Bind("Colors.PaintColors", "Purple", "1.2,0.5,1.4",
-                new ConfigDescription("RGB color values for Purple (format: R,G,B with values 0.0-3.0)"));
+            PurpleColorConfig = Config.Bind("Colors.PaintColors", "Purple", new Color(1.2f, 0.5f, 1.4f),
+                new ConfigDescription("Color for Purple paint",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
             // Debug configuration section
             LogLevelConfig = Config.Bind("Debug", "LogLevel", LogLevel.Basic,
@@ -306,10 +331,14 @@ namespace TorvaldsPainters
                 "- Debug: Everything including raycast details"));
 
             MaxPaintDistanceConfig = Config.Bind("Debug", "MaxPaintDistance", 8.0f,
-                new ConfigDescription("Maximum distance for painting objects (meters)", new AcceptableValueRange<float>(1f, 20f)));
+                new ConfigDescription("Maximum distance for painting objects (meters)", 
+                    new AcceptableValueRange<float>(1f, 20f),
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
             RequireBuildPermissionConfig = Config.Bind("Debug", "RequireBuildPermission", true,
-                new ConfigDescription("Require build permission to paint objects (recommended for multiplayer)"));
+                new ConfigDescription("Require build permission to paint objects (recommended for multiplayer)",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
             // Flag-based filtering configuration section
             AllowedCategoriesConfig = Config.Bind("Filtering", "AllowedCategories",
@@ -345,60 +374,44 @@ namespace TorvaldsPainters
             RebuildNameSets();
             WhitelistPrefabsConfig.SettingChanged += (_, __) => RebuildNameSets();
             BlacklistPrefabsConfig.SettingChanged += (_, __) => RebuildNameSets();
+            
+            // Add color config change handlers for runtime reloading
+            DarkBrownColorConfig.SettingChanged += (_, __) => InitializeColorsFromConfig();
+            MediumBrownColorConfig.SettingChanged += (_, __) => InitializeColorsFromConfig();
+            NaturalWoodColorConfig.SettingChanged += (_, __) => InitializeColorsFromConfig();
+            LightBrownColorConfig.SettingChanged += (_, __) => InitializeColorsFromConfig();
+            PaleWoodColorConfig.SettingChanged += (_, __) => InitializeColorsFromConfig();
+            BlackColorConfig.SettingChanged += (_, __) => InitializeColorsFromConfig();
+            WhiteColorConfig.SettingChanged += (_, __) => InitializeColorsFromConfig();
+            RedColorConfig.SettingChanged += (_, __) => InitializeColorsFromConfig();
+            BlueColorConfig.SettingChanged += (_, __) => InitializeColorsFromConfig();
+            GreenColorConfig.SettingChanged += (_, __) => InitializeColorsFromConfig();
+            YellowColorConfig.SettingChanged += (_, __) => InitializeColorsFromConfig();
+            OrangeColorConfig.SettingChanged += (_, __) => InitializeColorsFromConfig();
+            PurpleColorConfig.SettingChanged += (_, __) => InitializeColorsFromConfig();
         }
 
         private void InitializeColorsFromConfig()
         {
-            try
-            {
-                // Parse colors from config and update the VikingColors dictionary
-                VikingColors["Dark Brown"] = ParseColorFromConfig(DarkBrownColorConfig.Value, new Color(0.6f, 0.3f, 0.1f));
-                VikingColors["Medium Brown"] = ParseColorFromConfig(MediumBrownColorConfig.Value, Color.white);
-                VikingColors["Natural Wood"] = ParseColorFromConfig(NaturalWoodColorConfig.Value, new Color(1.0f, 1.0f, 1.0f));
-                VikingColors["Light Brown"] = ParseColorFromConfig(LightBrownColorConfig.Value, new Color(1.3f, 1.1f, 0.9f));
-                VikingColors["Pale Wood"] = ParseColorFromConfig(PaleWoodColorConfig.Value, new Color(1.5f, 1.3f, 1.1f));
+            // Load colors from config directly - BepInEx handles Color serialization
+            VikingColors["Dark Brown"] = DarkBrownColorConfig.Value;
+            VikingColors["Medium Brown"] = MediumBrownColorConfig.Value;
+            VikingColors["Natural Wood"] = NaturalWoodColorConfig.Value;
+            VikingColors["Light Brown"] = LightBrownColorConfig.Value;
+            VikingColors["Pale Wood"] = PaleWoodColorConfig.Value;
 
-                VikingColors["Black"] = ParseColorFromConfig(BlackColorConfig.Value, new Color(0.1f, 0.1f, 0.1f));
-                VikingColors["White"] = ParseColorFromConfig(WhiteColorConfig.Value, new Color(2.5f, 2.5f, 2.5f));
-                VikingColors["Red"] = ParseColorFromConfig(RedColorConfig.Value, new Color(1.5f, 0.2f, 0.2f));
-                VikingColors["Blue"] = ParseColorFromConfig(BlueColorConfig.Value, new Color(0.2f, 0.3f, 1.5f));
-                VikingColors["Green"] = ParseColorFromConfig(GreenColorConfig.Value, new Color(0.3f, 1.5f, 0.3f));
-                VikingColors["Yellow"] = ParseColorFromConfig(YellowColorConfig.Value, new Color(1.8f, 1.6f, 0.2f));
-                VikingColors["Orange"] = ParseColorFromConfig(OrangeColorConfig.Value, new Color(1.5f, 0.9f, 0.25f));
-                VikingColors["Purple"] = ParseColorFromConfig(PurpleColorConfig.Value, new Color(1.2f, 0.5f, 1.4f));
+            VikingColors["Black"] = BlackColorConfig.Value;
+            VikingColors["White"] = WhiteColorConfig.Value;
+            VikingColors["Red"] = RedColorConfig.Value;
+            VikingColors["Blue"] = BlueColorConfig.Value;
+            VikingColors["Green"] = GreenColorConfig.Value;
+            VikingColors["Yellow"] = YellowColorConfig.Value;
+            VikingColors["Orange"] = OrangeColorConfig.Value;
+            VikingColors["Purple"] = PurpleColorConfig.Value;
 
-                Jotunn.Logger.LogInfo("🎨 Colors loaded from configuration!");
-            }
-            catch (Exception ex)
-            {
-                Jotunn.Logger.LogError($"❌ Error loading colors from configuration: {ex.Message}");
-            }
+            Jotunn.Logger.LogInfo("🎨 Colors loaded from configuration!");
         }
 
-        private Color ParseColorFromConfig(string colorString, Color defaultColor)
-        {
-            try
-            {
-                string[] parts = colorString.Split(',');
-                if (parts.Length == 3 &&
-                    float.TryParse(parts[0], out float r) &&
-                    float.TryParse(parts[1], out float g) &&
-                    float.TryParse(parts[2], out float b))
-                {
-                    // Clamp values to reasonable HDR range (0.0 to 3.0)
-                    r = Mathf.Clamp(r, 0f, 3f);
-                    g = Mathf.Clamp(g, 0f, 3f);
-                    b = Mathf.Clamp(b, 0f, 3f);
-                    return new Color(r, g, b);
-                }
-            }
-            catch (Exception ex)
-            {
-                Jotunn.Logger.LogWarning($"⚠️ Invalid color format '{colorString}', using default: {ex.Message}");
-            }
-
-            return defaultColor;
-        }
 
 
         // Name set management for whitelist/blacklist
@@ -739,7 +752,7 @@ namespace TorvaldsPainters
             }
 
             // Create ray from camera through mouse position
-            var ray = camera.ScreenPointToRay(Input.mousePosition);
+            var ray = camera.ScreenPointToRay(UnityEngine.Input.mousePosition);
             Jotunn.Logger.LogDebug($"GetPaintableObjectAtLook: Ray origin={ray.origin}, direction={ray.direction}");
 
             float maxDistance = MaxPaintDistanceConfig.Value;
@@ -1128,24 +1141,11 @@ namespace TorvaldsPainters
             Jotunn.Logger.LogDebug($"TP_SetColor: Applied {colorName} to {piece.name} from RPC");
         }
 
-        private static Sprite LoadEmbeddedPngSprite(string resourceName, float ppu = 100f)
+        private static Sprite LoadPngSpriteFromFile(string fileName, float ppu = 100f)
         {
-            var asm = System.Reflection.Assembly.GetExecutingAssembly();
-            using (var s = asm.GetManifestResourceStream(resourceName))
-            {
-                if (s == null) return null;
-                byte[] bytes = new byte[s.Length];
-                _ = s.Read(bytes, 0, bytes.Length);
-
-                var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-                if (!tex.LoadImage(bytes, markNonReadable: false)) return null;
-
-                tex.filterMode = FilterMode.Bilinear;
-                tex.wrapMode = TextureWrapMode.Clamp;
-
-                return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height),
-                                     new Vector2(0.5f, 0.5f), ppu);
-            }
+            // Use Jotunn's AssetUtils to load sprite from file - avoids Unity ImageConversionModule dependency
+            var sprite = Jotunn.Utils.AssetUtils.LoadSpriteFromFile(fileName, new Vector2(0.5f, 0.5f));
+            return sprite;
         }
 
         private void CustomizePaintingMalletAppearance(GameObject malletPrefab)
@@ -1162,8 +1162,8 @@ namespace TorvaldsPainters
                 Jotunn.Logger.LogDebug($"Available embedded resources: {string.Join(", ", resources)}");
                 Jotunn.Logger.LogDebug($"Number of resources found: {resources.Length}");
 
-                // Load embedded custom icon - the resource name uses hyphens (from project namespace)
-                var customIcon = LoadEmbeddedPngSprite("torvalds-painters.mallet.png", 100f);
+                // Load custom icon from file using Jotunn AssetUtils
+                var customIcon = LoadPngSpriteFromFile("torvalds-painters/mallet.png", 100f);
                 if (customIcon != null)
                 {
                     shared.m_icons = new[] { customIcon };
