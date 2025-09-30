@@ -41,7 +41,9 @@
     <None Include="app.config" />
     <None Include="packages.config" />
     <None Include="README.md" />
-    <EmbeddedResource Include="mallet.png" />
+    <None Include="mallet.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
   <ItemGroup>

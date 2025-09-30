@@ -5,6 +5,25 @@ All notable changes to Torvald's Affordable Painters will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2025-09-29
+
+### Added
+- Server synchronization using Jotunn's IsAdminOnly flags for multiplayer consistency
+- Runtime configuration reload via SettingChanged event handlers for immediate config updates
+
+
+### Changed
+- Improved icon loading system using Jotunn AssetUtils instead of Unity's Texture2D.LoadImage
+- Enhanced cross-platform compatibility for Linux development environments
+- **BREAKING:** Updated PluginGUID from "com.torvald.painters" to "cebero.TorvaldsAffordablePainters" for consistency with Thunderstore branding (will create new config file)
+- **BREAKING:** Renamed all color configuration entries to use "RGBMultiplier" suffix (e.g., "Black" → "BlackRGBMultiplier") to clarify that these are multiplicative values, not final colors
+- Improved default wood tone progression with better visual distinction and proper driftwood gray effect
+- Reduced White paint brightness to prevent blown-out appearance
+
+### Fixed
+- Resolved CS1705 assembly version conflicts on Linux .NET builds
+- Improved configuration system reliability and responsiveness
+
 ## [1.2.2] - 2025-08-25
 
 ### Fixed

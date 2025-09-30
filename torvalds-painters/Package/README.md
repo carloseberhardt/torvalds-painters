@@ -26,7 +26,7 @@ Now, before you start thinking old Torvald's going to let you paint your longhou
 
 ## Configuration
 
-After running the mod once, you'll find a config file at `BepInEx/config/com.torvald.painters.cfg`.
+After running the mod once, you'll find a config file at `BepInEx/config/cebero.TorvaldsAffordablePainters.cfg`.
 
 ### Recipe Configuration
 
@@ -59,22 +59,137 @@ All 13 colors are individually configurable using RGB values (0.0 to 3.0):
 
 ```ini
 [Colors.WoodTones]
-DarkBrown = 0.65,0.35,0.20
-MediumBrown = 0.80,0.60,0.45
-NaturalWood = 1.0,1.0,1.0
-LightBrown = 1.15,1.05,0.90
-PaleWood = 1.30,1.15,1.00
+DarkBrownRGBMultiplier = 0.45,0.25,0.15
+MediumBrownRGBMultiplier = 1.2,0.8,0.4
+NaturalWoodRGBMultiplier = 1.0,1.0,1.0
+LightBrownRGBMultiplier = 1.3,1.1,0.8
+PaleWoodRGBMultiplier = 1.1,1.4,1.9
 
 [Colors.PaintColors]
-Black = 0.1,0.1,0.1
-White = 2.0,2.0,2.0
-Red = 1.5,0.2,0.2
-Blue = 0.25,0.35,1.40
-Green = 0.30,1.30,0.30
-Yellow = 1.60,1.40,0.25
-Orange = 1.5,0.9,0.25
-Purple = 1.2,0.5,1.4
+BlackRGBMultiplier = 0.1,0.1,0.1
+WhiteRGBMultiplier = 1.55,1.75,1.95
+RedRGBMultiplier = 1.5,0.2,0.2
+BlueRGBMultiplier = 0.2,0.3,1.5
+GreenRGBMultiplier = 0.3,1.5,0.3
+YellowRGBMultiplier = 1.8,1.6,0.2
+OrangeRGBMultiplier = 1.5,0.9,0.25
+PurpleRGBMultiplier = 1.2,0.5,1.4
 ```
+
+## How Torvald's Painting System Works
+
+### The Multiplicative Tinting System
+
+This mod doesn't replace textures or apply solid colors - instead, it uses **multiplicative color blending** to tint the original wood and stone textures while preserving all their natural detail, grain, and weathering.
+
+#### What Are RGB Multipliers?
+
+When you paint a piece, the mod multiplies each color channel (Red, Green, Blue) of the original texture by your configured values:
+
+- `Original_Color × Multiplier = Final_Color`
+- **1.0** = No change (100% of original)
+- **0.5** = Darker (50% of original)
+- **2.0** = Brighter (200% of original)
+
+#### Why This System?
+
+This approach preserves the beautiful textures Iron Gate created while allowing color customization:
+- Wood grain remains visible through paint
+- Stone texture shows through tints
+- Weathering and damage still display properly
+- Shadows and lighting work naturally
+
+### Creating Custom Colors
+
+#### Understanding the Values
+
+Each color is defined by three numbers: `Red,Green,Blue` with ranges from 0.0 to 3.0
+
+**Basic Principles:**
+- **Darken:** Use values below 1.0
+- **No change:** Use 1.0
+- **Brighten:** Use values above 1.0
+
+#### Color Creation Examples
+
+**Understanding Our Default Colors:**
+
+Let's examine how our tested defaults achieve their effects:
+
+**Dark Walnut Effect:**
+```ini
+DarkBrownRGBMultiplier = 0.45,0.25,0.15
+# Low values across all channels create deep brown
+# Red highest, blue lowest = warm dark tone
+```
+
+**Warm Golden Brown:**
+```ini
+MediumBrownRGBMultiplier = 1.2,0.8,0.4
+# Red boosted, green moderate, blue low = warm amber/honey
+# This balances warmth without going too yellow
+```
+
+**Cool Driftwood Gray:**
+```ini
+PaleWoodRGBMultiplier = 1.1,1.4,1.9
+# Progressive increase toward blue counters wood's natural warmth
+# Creates weathered, gray appearance
+```
+
+**Creating Your Own Colors:**
+
+Start with our working defaults and make small adjustments (±0.1 to ±0.3) to get variations. For example:
+- **Darker walnut**: Reduce all values from Dark Brown
+- **Warmer honey**: Increase red/green from Medium Brown
+- **Cooler gray**: Increase blue further from Pale Wood
+
+**Important:** Multiplicative blending means you're working with the existing wood texture, not creating colors from scratch. Experimentation required. After making changes, repaint pieces to apply the new setting.
+
+#### Color Temperature and Tone Control
+
+Understanding how each RGB channel affects the final appearance:
+
+**Red Channel (First Number):**
+- **Higher Red** = Warmer, more reddish (mahogany, cherry wood)
+- **Lower Red** = Cooler tones
+
+**Green Channel (Second Number):**
+- **Higher Green + High Red** = Yellow/amber tones (golden wood)
+- **Higher Green + Low Red** = More neutral/cooler tones
+- **Lower Green** = Magenta/purple shift
+
+**Blue Channel (Third Number):**
+- **Higher Blue** = Cooler, grayer tones (counters wood's natural warmth)
+- **Lower Blue** = Warmer, more yellow/orange tones
+
+**Practical Examples:**
+```ini
+WarmMahogany = 1.2,0.8,0.4     # High red, low blue = warm reddish
+CoolDriftwood = 1.1,1.4,1.9    # Progressive blue increase = gray weathered look
+NeutralGray = 1.2,1.2,1.2      # Equal values = neutral gray
+```
+
+#### Tips for Color Creation
+
+1. **Start with existing colors** - Modify our defaults slightly to get variations
+2. **Test incrementally** - Small changes (±0.1) can make big differences
+3. **Consider the base texture** - Dark wood needs higher values than light wood
+4. **Account for lighting** - Valheim's day/night cycle affects appearance
+5. **Use blue to cool** - Increase blue channel to counter wood's warm tones
+6. **Balance red/green** - These create warm golden tones when combined
+
+
+### Graphics Settings for Testing Color Display
+
+For the most accurate color representation and consistent appearance when tweaking colors:
+
+- **Disable Bloom** in Valheim's graphics settings
+- This prevents bright colors (White, Yellow) from appearing "blown out"
+- Reduces glow/halo effects around painted objects
+- Provides more consistent color appearance across day/night cycles
+
+**Note:** Bloom can dramatically affect how HDR colors (values >1.0) appear, especially in bright lighting conditions.
 
 ### Advanced Filtering Options
 
@@ -89,9 +204,9 @@ ExcludedFunctional = Stations, Production, Storage, Beds, PortalsWard, Transport
 # Material types that can be painted (flags: Wood, Stone, Metal, Marble, All)
 AllowedMaterials = Wood, Stone, Marble
 # Specific prefabs to always allow (comma-separated)
-WhitelistPrefabs = 
+WhitelistPrefabs =
 # Specific prefabs to always block (comma-separated, overrides whitelist)
-BlacklistPrefabs = 
+BlacklistPrefabs =
 ```
 
 ### Debug Options
@@ -115,4 +230,3 @@ Torvald's business model is flexible - want to make his services more exclusive?
 ## Installation
 
 Install with a mod manager or manually place the files in your BepInEx/plugins folder. Requires BepInEx and Jotunn.
-

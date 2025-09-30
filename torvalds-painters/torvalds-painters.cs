@@ -40,6 +40,17 @@ public static class MaterialManExtensions
 
 namespace TorvaldsPainters
 {
+    // Configuration manager attributes for server sync and GUI display
+    public class ConfigurationManagerAttributes
+    {
+        public bool? IsAdminOnly { get; set; }
+        public bool? IsAdvanced { get; set; }
+        public int? Order { get; set; }
+        public bool? Browsable { get; set; }
+        public string Category { get; set; }
+        public System.Action<BepInEx.Configuration.ConfigEntryBase> CustomDrawer { get; set; }
+    }
+
     // Component for scoped ESC key handling when color picker is open
     public class PickerCloser : MonoBehaviour
     {
@@ -114,9 +125,9 @@ namespace TorvaldsPainters
     [NetworkCompatibility(CompatibilityLevel.EveryoneMustHaveMod, VersionStrictness.Minor)]
     internal class TorvaldsPainters : BaseUnityPlugin
     {
-        public const string PluginGUID = "com.torvald.painters";
+        public const string PluginGUID = "cebero.TorvaldsAffordablePainters";
         public const string PluginName = "Torvald's Affordable Painters";
-        public const string PluginVersion = "1.2.2";
+        public const string PluginVersion = "1.3.0";
 
         // Configuration entries
         #region Configuration
@@ -126,21 +137,21 @@ namespace TorvaldsPainters
         private static ConfigEntry<bool> RequireWorkbenchConfig;
 
         // Color configuration - Wood tones
-        private static ConfigEntry<string> DarkBrownColorConfig;
-        private static ConfigEntry<string> MediumBrownColorConfig;
-        private static ConfigEntry<string> NaturalWoodColorConfig;
-        private static ConfigEntry<string> LightBrownColorConfig;
-        private static ConfigEntry<string> PaleWoodColorConfig;
+        private static ConfigEntry<string> DarkBrownRGBMultiplierConfig;
+        private static ConfigEntry<string> MediumBrownRGBMultiplierConfig;
+        private static ConfigEntry<string> NaturalWoodRGBMultiplierConfig;
+        private static ConfigEntry<string> LightBrownRGBMultiplierConfig;
+        private static ConfigEntry<string> PaleWoodRGBMultiplierConfig;
 
         // Color configuration - Paint colors
-        private static ConfigEntry<string> BlackColorConfig;
-        private static ConfigEntry<string> WhiteColorConfig;
-        private static ConfigEntry<string> RedColorConfig;
-        private static ConfigEntry<string> BlueColorConfig;
-        private static ConfigEntry<string> GreenColorConfig;
-        private static ConfigEntry<string> YellowColorConfig;
-        private static ConfigEntry<string> OrangeColorConfig;
-        private static ConfigEntry<string> PurpleColorConfig;
+        private static ConfigEntry<string> BlackRGBMultiplierConfig;
+        private static ConfigEntry<string> WhiteRGBMultiplierConfig;
+        private static ConfigEntry<string> RedRGBMultiplierConfig;
+        private static ConfigEntry<string> BlueRGBMultiplierConfig;
+        private static ConfigEntry<string> GreenRGBMultiplierConfig;
+        private static ConfigEntry<string> YellowRGBMultiplierConfig;
+        private static ConfigEntry<string> OrangeRGBMultiplierConfig;
+        private static ConfigEntry<string> PurpleRGBMultiplierConfig;
 
         // Debug configuration
         private static ConfigEntry<LogLevel> LogLevelConfig;
@@ -164,24 +175,8 @@ namespace TorvaldsPainters
         // Harmony instance for patches
         private Harmony harmony;
 
-        // Color values for painting - loaded from configuration with defaults
-        public static readonly Dictionary<string, Color> VikingColors = new Dictionary<string, Color>()
-        {
-            // Wood shades - Natural Wood in center, 2 darker, 2 lighter
-            {"Dark Brown", new Color(0.6f, 0.3f, 0.1f)}, // Darkest wood
-            {"Medium Brown", Color.white}, // MATCHES natural wood perfectly - this was the key!
-            {"Natural Wood", new Color(1.0f, 1.0f, 1.0f)}, // Base wood color
-            {"Light Brown", new Color(1.3f, 1.1f, 0.9f)}, // Lighter wood
-            {"Pale Wood", new Color(1.5f, 1.3f, 1.1f)}, // Lightest wood
-            
-            // Banner colors that looked perfect
-            {"Black", new Color(0.1f, 0.1f, 0.1f)}, // Deep black
-            {"White", new Color(2.5f, 2.5f, 2.5f)}, // Bright white
-            {"Red", new Color(1.5f, 0.2f, 0.2f)}, // Vibrant red
-            {"Blue", new Color(0.2f, 0.3f, 1.5f)}, // True blue  
-            {"Green", new Color(0.3f, 1.5f, 0.3f)}, // Vibrant green
-            {"Yellow", new Color(1.8f, 1.6f, 0.2f)} // Bright yellow
-        };
+        // Color values for painting - loaded from configuration
+        public static readonly Dictionary<string, Color> VikingColors = new Dictionary<string, Color>();
 
         // Current state
         public static string currentSelectedColor = "Natural Wood";
@@ -251,51 +246,94 @@ namespace TorvaldsPainters
                 "- Early game: \"Wood:10,LeatherScraps:5,Coal:1\"\n" +
                 "- Mid game: \"FineWood:8,Bronze:2,LeatherScraps:3\"\n" +
                 "- Late game: \"BlackMetal:1,Silver:2,LoxPelt:1\"\n" +
-                "Use exact Valheim item names (case sensitive)"));
+                "Use exact Valheim item names (case sensitive)",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
             RequireWorkbenchConfig = Config.Bind("Recipe", "RequireWorkbench", true,
-                new ConfigDescription("Whether the painting mallet requires a workbench to craft"));
+                new ConfigDescription("Whether the painting mallet requires a workbench to craft",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
             // Wood tone colors configuration
-            DarkBrownColorConfig = Config.Bind("Colors.WoodTones", "DarkBrown", "0.65,0.35,0.20",
-                new ConfigDescription("RGB color values for Dark Brown (format: R,G,B with values 0.0-3.0)"));
+            DarkBrownRGBMultiplierConfig = Config.Bind("Colors.WoodTones", "DarkBrownRGBMultiplier", "0.45,0.25,0.15",
+                new ConfigDescription("RGB multiplier values for Dark Brown wood effect (format: R,G,B with values 0.0-3.0)\n" +
+                    "Values <1.0 darken, 1.0 = unchanged, >1.0 brighten. Multiplies with base texture.",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
-            MediumBrownColorConfig = Config.Bind("Colors.WoodTones", "MediumBrown", "0.80,0.60,0.45",
-                new ConfigDescription("RGB color values for Medium Brown (format: R,G,B with values 0.0-3.0)"));
+            MediumBrownRGBMultiplierConfig = Config.Bind("Colors.WoodTones", "MediumBrownRGBMultiplier", "1.2,0.8,0.4",
+                new ConfigDescription("RGB multiplier values for Medium Brown wood effect (format: R,G,B with values 0.0-3.0)\n" +
+                    "Values <1.0 darken, 1.0 = unchanged, >1.0 brighten. Multiplies with base texture.",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
-            NaturalWoodColorConfig = Config.Bind("Colors.WoodTones", "NaturalWood", "1.0,1.0,1.0",
-                new ConfigDescription("RGB color values for Natural Wood (format: R,G,B with values 0.0-3.0)"));
+            NaturalWoodRGBMultiplierConfig = Config.Bind("Colors.WoodTones", "NaturalWoodRGBMultiplier", "1.0,1.0,1.0",
+                new ConfigDescription("RGB multiplier values for Natural Wood - leaves texture unchanged (format: R,G,B)\n" +
+                    "1.0,1.0,1.0 = original texture with no modifications.",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
-            LightBrownColorConfig = Config.Bind("Colors.WoodTones", "LightBrown", "1.15,1.05,0.90",
-                new ConfigDescription("RGB color values for Light Brown (format: R,G,B with values 0.0-3.0)"));
+            LightBrownRGBMultiplierConfig = Config.Bind("Colors.WoodTones", "LightBrownRGBMultiplier", "1.3,1.1,0.8",
+                new ConfigDescription("RGB multiplier values for Light Brown wood effect (format: R,G,B with values 0.0-3.0)\n" +
+                    "Values <1.0 darken, 1.0 = unchanged, >1.0 brighten. Multiplies with base texture.",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
-            PaleWoodColorConfig = Config.Bind("Colors.WoodTones", "PaleWood", "1.30,1.15,1.00",
-                new ConfigDescription("RGB color values for Pale Wood (format: R,G,B with values 0.0-3.0)"));
+            PaleWoodRGBMultiplierConfig = Config.Bind("Colors.WoodTones", "PaleWoodRGBMultiplier", "1.1,1.4,1.9",
+                new ConfigDescription("RGB multiplier values for Pale Wood effect (format: R,G,B with values 0.0-3.0)\n" +
+                    "Values <1.0 darken, 1.0 = unchanged, >1.0 brighten. Multiplies with base texture.",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
             // Paint colors configuration
-            BlackColorConfig = Config.Bind("Colors.PaintColors", "Black", "0.1,0.1,0.1",
-                new ConfigDescription("RGB color values for Black (format: R,G,B with values 0.0-3.0)"));
+            BlackRGBMultiplierConfig = Config.Bind("Colors.PaintColors", "BlackRGBMultiplier", "0.1,0.1,0.1",
+                new ConfigDescription("RGB multiplier values for Black paint effect (format: R,G,B with values 0.0-3.0)\n" +
+                    "Low values create dark colors. Multiplies with base texture.",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
-            WhiteColorConfig = Config.Bind("Colors.PaintColors", "White", "2.0,2.0,2.0",
-                new ConfigDescription("RGB color values for White (format: R,G,B with values 0.0-3.0)"));
+            WhiteRGBMultiplierConfig = Config.Bind("Colors.PaintColors", "WhiteRGBMultiplier", "1.55,1.75,1.95",
+                new ConfigDescription("RGB multiplier values for White paint effect (format: R,G,B with values 0.0-3.0)\n" +
+                    "High values create bright/white colors. Multiplies with base texture.",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
-            RedColorConfig = Config.Bind("Colors.PaintColors", "Red", "1.5,0.2,0.2",
-                new ConfigDescription("RGB color values for Red (format: R,G,B with values 0.0-3.0)"));
+            RedRGBMultiplierConfig = Config.Bind("Colors.PaintColors", "RedRGBMultiplier", "1.5,0.2,0.2",
+                new ConfigDescription("RGB multiplier values for Red paint effect (format: R,G,B with values 0.0-3.0)\n" +
+                    "Boost red channel, reduce green/blue for red tint. Multiplies with base texture.",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
-            BlueColorConfig = Config.Bind("Colors.PaintColors", "Blue", "0.25,0.35,1.40",
-                new ConfigDescription("RGB color values for Blue (format: R,G,B with values 0.0-3.0)"));
+            BlueRGBMultiplierConfig = Config.Bind("Colors.PaintColors", "BlueRGBMultiplier", "0.2,0.3,1.5",
+                new ConfigDescription("RGB multiplier values for Blue paint effect (format: R,G,B with values 0.0-3.0)\n" +
+                    "Boost blue channel, reduce red/green for blue tint. Multiplies with base texture.",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
-            GreenColorConfig = Config.Bind("Colors.PaintColors", "Green", "0.30,1.30,0.30",
-                new ConfigDescription("RGB color values for Green (format: R,G,B with values 0.0-3.0)"));
+            GreenRGBMultiplierConfig = Config.Bind("Colors.PaintColors", "GreenRGBMultiplier", "0.3,1.5,0.3",
+                new ConfigDescription("RGB multiplier values for Green paint effect (format: R,G,B with values 0.0-3.0)\n" +
+                    "Boost green channel, reduce red/blue for green tint. Multiplies with base texture.",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
-            YellowColorConfig = Config.Bind("Colors.PaintColors", "Yellow", "1.60,1.40,0.25",
-                new ConfigDescription("RGB color values for Yellow (format: R,G,B with values 0.0-3.0)"));
+            YellowRGBMultiplierConfig = Config.Bind("Colors.PaintColors", "YellowRGBMultiplier", "1.8,1.6,0.2",
+                new ConfigDescription("RGB multiplier values for Yellow paint effect (format: R,G,B with values 0.0-3.0)\n" +
+                    "Boost red/green channels, reduce blue for yellow tint. Multiplies with base texture.",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
-            OrangeColorConfig = Config.Bind("Colors.PaintColors", "Orange", "1.5,0.9,0.25",
-                new ConfigDescription("RGB color values for Orange (format: R,G,B with values 0.0-3.0)"));
+            OrangeRGBMultiplierConfig = Config.Bind("Colors.PaintColors", "OrangeRGBMultiplier", "1.5,0.9,0.25",
+                new ConfigDescription("RGB multiplier values for Orange paint effect (format: R,G,B with values 0.0-3.0)\n" +
+                    "Boost red, moderate green, low blue for orange tint. Multiplies with base texture.",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
-            PurpleColorConfig = Config.Bind("Colors.PaintColors", "Purple", "1.2,0.5,1.4",
-                new ConfigDescription("RGB color values for Purple (format: R,G,B with values 0.0-3.0)"));
+            PurpleRGBMultiplierConfig = Config.Bind("Colors.PaintColors", "PurpleRGBMultiplier", "1.2,0.5,1.4",
+                new ConfigDescription("RGB multiplier values for Purple paint effect (format: R,G,B with values 0.0-3.0)\n" +
+                    "Boost red/blue channels, reduce green for purple tint. Multiplies with base texture.",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
             // Debug configuration section
             LogLevelConfig = Config.Bind("Debug", "LogLevel", LogLevel.Basic,
@@ -306,10 +344,14 @@ namespace TorvaldsPainters
                 "- Debug: Everything including raycast details"));
 
             MaxPaintDistanceConfig = Config.Bind("Debug", "MaxPaintDistance", 8.0f,
-                new ConfigDescription("Maximum distance for painting objects (meters)", new AcceptableValueRange<float>(1f, 20f)));
+                new ConfigDescription("Maximum distance for painting objects (meters)", 
+                    new AcceptableValueRange<float>(1f, 20f),
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
             RequireBuildPermissionConfig = Config.Bind("Debug", "RequireBuildPermission", true,
-                new ConfigDescription("Require build permission to paint objects (recommended for multiplayer)"));
+                new ConfigDescription("Require build permission to paint objects (recommended for multiplayer)",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
 
             // Flag-based filtering configuration section
             AllowedCategoriesConfig = Config.Bind("Filtering", "AllowedCategories",
@@ -339,40 +381,48 @@ namespace TorvaldsPainters
                 "These override all other filtering rules (including whitelist).\n" +
                 "Example: piece_workbench,piece_forge"));
 
-            Jotunn.Logger.LogInfo("⚙️ Configuration loaded successfully!");
+            Jotunn.Logger.LogDebug("⚙️ Configuration loaded successfully!");
 
             // Build name sets and setup change handlers
             RebuildNameSets();
             WhitelistPrefabsConfig.SettingChanged += (_, __) => RebuildNameSets();
             BlacklistPrefabsConfig.SettingChanged += (_, __) => RebuildNameSets();
+            
+            // Add color config change handlers for runtime reloading
+            DarkBrownRGBMultiplierConfig.SettingChanged += (_, __) => InitializeColorsFromConfig();
+            MediumBrownRGBMultiplierConfig.SettingChanged += (_, __) => InitializeColorsFromConfig();
+            NaturalWoodRGBMultiplierConfig.SettingChanged += (_, __) => InitializeColorsFromConfig();
+            LightBrownRGBMultiplierConfig.SettingChanged += (_, __) => InitializeColorsFromConfig();
+            PaleWoodRGBMultiplierConfig.SettingChanged += (_, __) => InitializeColorsFromConfig();
+            BlackRGBMultiplierConfig.SettingChanged += (_, __) => InitializeColorsFromConfig();
+            WhiteRGBMultiplierConfig.SettingChanged += (_, __) => InitializeColorsFromConfig();
+            RedRGBMultiplierConfig.SettingChanged += (_, __) => InitializeColorsFromConfig();
+            BlueRGBMultiplierConfig.SettingChanged += (_, __) => InitializeColorsFromConfig();
+            GreenRGBMultiplierConfig.SettingChanged += (_, __) => InitializeColorsFromConfig();
+            YellowRGBMultiplierConfig.SettingChanged += (_, __) => InitializeColorsFromConfig();
+            OrangeRGBMultiplierConfig.SettingChanged += (_, __) => InitializeColorsFromConfig();
+            PurpleRGBMultiplierConfig.SettingChanged += (_, __) => InitializeColorsFromConfig();
         }
 
         private void InitializeColorsFromConfig()
         {
-            try
-            {
-                // Parse colors from config and update the VikingColors dictionary
-                VikingColors["Dark Brown"] = ParseColorFromConfig(DarkBrownColorConfig.Value, new Color(0.6f, 0.3f, 0.1f));
-                VikingColors["Medium Brown"] = ParseColorFromConfig(MediumBrownColorConfig.Value, Color.white);
-                VikingColors["Natural Wood"] = ParseColorFromConfig(NaturalWoodColorConfig.Value, new Color(1.0f, 1.0f, 1.0f));
-                VikingColors["Light Brown"] = ParseColorFromConfig(LightBrownColorConfig.Value, new Color(1.3f, 1.1f, 0.9f));
-                VikingColors["Pale Wood"] = ParseColorFromConfig(PaleWoodColorConfig.Value, new Color(1.5f, 1.3f, 1.1f));
+            // Parse RGB multiplier values from config strings - these multiply with base texture
+            VikingColors["Dark Brown"] = ParseColorFromConfig(DarkBrownRGBMultiplierConfig.Value, new Color(0.45f, 0.25f, 0.15f));
+            VikingColors["Medium Brown"] = ParseColorFromConfig(MediumBrownRGBMultiplierConfig.Value, new Color(1.2f, 0.8f, 0.4f));
+            VikingColors["Natural Wood"] = ParseColorFromConfig(NaturalWoodRGBMultiplierConfig.Value, new Color(1.0f, 1.0f, 1.0f));
+            VikingColors["Light Brown"] = ParseColorFromConfig(LightBrownRGBMultiplierConfig.Value, new Color(1.3f, 1.1f, 0.8f));
+            VikingColors["Pale Wood"] = ParseColorFromConfig(PaleWoodRGBMultiplierConfig.Value, new Color(1.1f, 1.4f, 1.9f));
 
-                VikingColors["Black"] = ParseColorFromConfig(BlackColorConfig.Value, new Color(0.1f, 0.1f, 0.1f));
-                VikingColors["White"] = ParseColorFromConfig(WhiteColorConfig.Value, new Color(2.5f, 2.5f, 2.5f));
-                VikingColors["Red"] = ParseColorFromConfig(RedColorConfig.Value, new Color(1.5f, 0.2f, 0.2f));
-                VikingColors["Blue"] = ParseColorFromConfig(BlueColorConfig.Value, new Color(0.2f, 0.3f, 1.5f));
-                VikingColors["Green"] = ParseColorFromConfig(GreenColorConfig.Value, new Color(0.3f, 1.5f, 0.3f));
-                VikingColors["Yellow"] = ParseColorFromConfig(YellowColorConfig.Value, new Color(1.8f, 1.6f, 0.2f));
-                VikingColors["Orange"] = ParseColorFromConfig(OrangeColorConfig.Value, new Color(1.5f, 0.9f, 0.25f));
-                VikingColors["Purple"] = ParseColorFromConfig(PurpleColorConfig.Value, new Color(1.2f, 0.5f, 1.4f));
+            VikingColors["Black"] = ParseColorFromConfig(BlackRGBMultiplierConfig.Value, new Color(0.1f, 0.1f, 0.1f));
+            VikingColors["White"] = ParseColorFromConfig(WhiteRGBMultiplierConfig.Value, new Color(1.55f, 1.75f, 1.95f));
+            VikingColors["Red"] = ParseColorFromConfig(RedRGBMultiplierConfig.Value, new Color(1.5f, 0.2f, 0.2f));
+            VikingColors["Blue"] = ParseColorFromConfig(BlueRGBMultiplierConfig.Value, new Color(0.2f, 0.3f, 1.5f));
+            VikingColors["Green"] = ParseColorFromConfig(GreenRGBMultiplierConfig.Value, new Color(0.3f, 1.5f, 0.3f));
+            VikingColors["Yellow"] = ParseColorFromConfig(YellowRGBMultiplierConfig.Value, new Color(1.8f, 1.6f, 0.2f));
+            VikingColors["Orange"] = ParseColorFromConfig(OrangeRGBMultiplierConfig.Value, new Color(1.5f, 0.9f, 0.25f));
+            VikingColors["Purple"] = ParseColorFromConfig(PurpleRGBMultiplierConfig.Value, new Color(1.2f, 0.5f, 1.4f));
 
-                Jotunn.Logger.LogInfo("🎨 Colors loaded from configuration!");
-            }
-            catch (Exception ex)
-            {
-                Jotunn.Logger.LogError($"❌ Error loading colors from configuration: {ex.Message}");
-            }
+            Jotunn.Logger.LogDebug("🎨 RGB multiplier values loaded from configuration!");
         }
 
         private Color ParseColorFromConfig(string colorString, Color defaultColor)
@@ -394,11 +444,12 @@ namespace TorvaldsPainters
             }
             catch (Exception ex)
             {
-                Jotunn.Logger.LogWarning($"⚠️ Invalid color format '{colorString}', using default: {ex.Message}");
+                Jotunn.Logger.LogWarning($"⚠️ Invalid RGB multiplier format '{colorString}', using default: {ex.Message}");
             }
 
             return defaultColor;
         }
+
 
 
         // Name set management for whitelist/blacklist
@@ -739,7 +790,7 @@ namespace TorvaldsPainters
             }
 
             // Create ray from camera through mouse position
-            var ray = camera.ScreenPointToRay(Input.mousePosition);
+            var ray = camera.ScreenPointToRay(UnityEngine.Input.mousePosition);
             Jotunn.Logger.LogDebug($"GetPaintableObjectAtLook: Ray origin={ray.origin}, direction={ray.direction}");
 
             float maxDistance = MaxPaintDistanceConfig.Value;
@@ -853,7 +904,7 @@ namespace TorvaldsPainters
             try
             {
                 string recipeString = RecipeConfig.Value;
-                Jotunn.Logger.LogInfo($"📋 Parsing recipe: {recipeString}");
+                Jotunn.Logger.LogDebug($"📋 Parsing recipe: {recipeString}");
 
                 if (string.IsNullOrWhiteSpace(recipeString))
                 {
@@ -890,7 +941,7 @@ namespace TorvaldsPainters
                     {
                         itemConfig.AddRequirement(new RequirementConfig(materialName, amount));
                         validMaterials++;
-                        Jotunn.Logger.LogInfo($"✅ Added recipe requirement: {materialName} x{amount}");
+                        Jotunn.Logger.LogDebug($"✅ Added recipe requirement: {materialName} x{amount}");
                     }
                     else
                     {
@@ -907,7 +958,7 @@ namespace TorvaldsPainters
                 }
                 else
                 {
-                    Jotunn.Logger.LogInfo($"🎨 Successfully applied recipe with {validMaterials} materials");
+                    Jotunn.Logger.LogDebug($"🎨 Successfully applied recipe with {validMaterials} materials");
                 }
             }
             catch (Exception ex)
@@ -960,7 +1011,7 @@ namespace TorvaldsPainters
             itemConfig.AddRequirement(new RequirementConfig("Wood", 10));
             itemConfig.AddRequirement(new RequirementConfig("LeatherScraps", 5));
             itemConfig.AddRequirement(new RequirementConfig("Coal", 1));
-            Jotunn.Logger.LogInfo("🔧 Applied default recipe: Wood x10, LeatherScraps x5, Coal x1");
+            Jotunn.Logger.LogDebug("🔧 Applied default recipe: Wood x10, LeatherScraps x5, Coal x1");
         }
 
         private void AddCustomItems()
@@ -1037,11 +1088,18 @@ namespace TorvaldsPainters
             if (RequireWorkbenchConfig.Value)
             {
                 itemConfig.CraftingStation = "piece_workbench";
+                Jotunn.Logger.LogDebug("🔨 Workbench requirement enabled for painting mallet");
+            }
+            else
+            {
+                Jotunn.Logger.LogDebug("🚫 No crafting station required for painting mallet");
             }
 
             // Create CustomItem from the pre-tinted cloned prefab
             var mallet = new CustomItem(cloned, true, itemConfig);
             ItemManager.Instance.AddItem(mallet);
+            
+            Jotunn.Logger.LogDebug($"🎯 Added mallet to ItemManager - ID: {mallet.ItemDrop.m_itemData.m_shared.m_name}");
 
             // Configure as proper tool (not weapon)
             var shared = mallet.ItemDrop.m_itemData.m_shared;
@@ -1128,24 +1186,23 @@ namespace TorvaldsPainters
             Jotunn.Logger.LogDebug($"TP_SetColor: Applied {colorName} to {piece.name} from RPC");
         }
 
-        private static Sprite LoadEmbeddedPngSprite(string resourceName, float ppu = 100f)
+        private static Sprite LoadPngSpriteFromFile(string fileName, float ppu = 100f)
         {
-            var asm = System.Reflection.Assembly.GetExecutingAssembly();
-            using (var s = asm.GetManifestResourceStream(resourceName))
+            // Use Jotunn's AssetUtils to load sprite from file - avoids Unity ImageConversionModule dependency
+            Jotunn.Logger.LogDebug($"🔍 Attempting to load icon from path: {fileName}");
+            
+            var sprite = Jotunn.Utils.AssetUtils.LoadSpriteFromFile(fileName, new Vector2(0.5f, 0.5f));
+            
+            if (sprite != null)
             {
-                if (s == null) return null;
-                byte[] bytes = new byte[s.Length];
-                _ = s.Read(bytes, 0, bytes.Length);
-
-                var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-                if (!tex.LoadImage(bytes, markNonReadable: false)) return null;
-
-                tex.filterMode = FilterMode.Bilinear;
-                tex.wrapMode = TextureWrapMode.Clamp;
-
-                return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height),
-                                     new Vector2(0.5f, 0.5f), ppu);
+                Jotunn.Logger.LogDebug($"✅ Successfully loaded sprite: {sprite.name} ({sprite.rect.width}x{sprite.rect.height})");
             }
+            else
+            {
+                Jotunn.Logger.LogWarning($"❌ Failed to load sprite from: {fileName}");
+            }
+            
+            return sprite;
         }
 
         private void CustomizePaintingMalletAppearance(GameObject malletPrefab)
@@ -1162,16 +1219,32 @@ namespace TorvaldsPainters
                 Jotunn.Logger.LogDebug($"Available embedded resources: {string.Join(", ", resources)}");
                 Jotunn.Logger.LogDebug($"Number of resources found: {resources.Length}");
 
-                // Load embedded custom icon - the resource name uses hyphens (from project namespace)
-                var customIcon = LoadEmbeddedPngSprite("torvalds-painters.mallet.png", 100f);
+                // Try multiple possible paths for the mallet icon
+                Sprite customIcon = null;
+                string[] possiblePaths = {
+                    "mallet.png",                           // Same directory as DLL
+                    "cebero-TorvaldsAffordablePainters/mallet.png",  // Thunderstore folder structure
+                    "torvalds-painters/mallet.png",        // Original attempt
+                    "../mallet.png"                        // Parent directory
+                };
+                
+                foreach (string path in possiblePaths)
+                {
+                    customIcon = LoadPngSpriteFromFile(path, 100f);
+                    if (customIcon != null)
+                    {
+                        Jotunn.Logger.LogInfo($"🎨 Successfully loaded custom icon from: {path}");
+                        break;
+                    }
+                }
                 if (customIcon != null)
                 {
                     shared.m_icons = new[] { customIcon };
-                    Jotunn.Logger.LogDebug("🎨 Applied embedded custom icon for painting mallet");
+                    Jotunn.Logger.LogInfo("🎨 Applied custom icon for painting mallet");
                 }
                 else
                 {
-                    Jotunn.Logger.LogWarning("⚠️ Embedded icon not found; leaving default hammer icon.");
+                    Jotunn.Logger.LogWarning("⚠️ Custom icon not found; leaving default hammer icon.");
                 }
             }
         }
@@ -1225,7 +1298,7 @@ namespace TorvaldsPainters
             // Log only for real paints or at higher debug levels
             if (logOnApply)
             {
-                Jotunn.Logger.LogInfo($"Applied {colorName} to piece {piece.name}");
+                Jotunn.Logger.LogDebug($"Applied {colorName} to piece {piece.name}");
             }
         }
 
@@ -1597,7 +1670,7 @@ namespace TorvaldsPainters
             if (ZRoutedRpc.instance != null)
             {
                 ZRoutedRpc.instance.Register<ZDOID, string>("TP_SetColor", TorvaldsPainters.OnRpcSetColor);
-                Jotunn.Logger.LogInfo("🔗 Multiplayer color sync ready");
+                Jotunn.Logger.LogDebug("🔗 Multiplayer color sync ready");
             }
         }
     }
